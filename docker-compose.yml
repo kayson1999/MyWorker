@@ -1,0 +1,30 @@
+version: "3.8"
+
+services:
+  myworker:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: myworker
+    restart: unless-stopped
+    ports:
+      - "8008:8008"
+    volumes:
+      # 持久化 SQLite 数据库文件
+      - myworker-data:/app/db
+      # 持久化日志文件
+      - myworker-logs:/app/logs
+    environment:
+      - PORT=8008
+      - USER_CENTER_URL=http://host.docker.internal:4000
+      - USER_CENTER_APP_ID=myworker
+      - LOG_DIR=/app/logs
+      - LOG_LEVEL=info
+      - LOG_MAX_FILES=1
+      - LOG_TO_CONSOLE=true
+
+volumes:
+  myworker-data:
+    driver: local
+  myworker-logs:
+    driver: local

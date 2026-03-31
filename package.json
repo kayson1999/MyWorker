@@ -1,0 +1,21 @@
+{
+  "name": "myworker",
+  "version": "1.0.0",
+  "description": "打工人打卡 — 独立前端应用",
+  "type": "module",
+  "scripts": {
+    "dev": "vite",
+    "build": "vite build",
+    "preview": "vite preview",
+    "server": "cd server && go run .",
+    "start": "cd server && go run ."
+  },
+  "dependencies": {
+    "vue": "^3.3.0",
+    "vue-router": "^4.2.0"
+  },
+  "devDependencies": {
+    "@vitejs/plugin-vue": "^4.2.0",
+    "vite": "^4.4.0"
+  }
+}
