@@ -25,6 +25,9 @@ RUN npm run build
 ## ============================================
 FROM golang:1.21-alpine AS backend-builder
 
+# 设置 Go 模块代理为国内镜像，加速依赖下载
+ENV GOPROXY=https://goproxy.cn,direct
+
 WORKDIR /app
 
 # 安装 CGO 依赖（sqlite3 需要）
