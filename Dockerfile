@@ -54,8 +54,6 @@ ENV TZ=Asia/Shanghai
 # 从构建阶段复制二进制文件
 COPY --from=backend-builder /app/myworker-server ./
 
-# 复制 .env 配置文件
-COPY server/.env ./
 
 # 从第一阶段复制前端构建产物
 COPY --from=frontend-builder /app/dist ./dist/
