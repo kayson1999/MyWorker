@@ -1,12 +1,16 @@
 /**
  * 统一认证 API 层
- * 
+ *
  * 认证由统一用户中心（MyUserCenter）管理，
  * 前端通过本服务后端代理与用户中心通信。
  * 支持从 URL 参数接收主站传递的 SSO Token。
  */
 
-const BASE_URL = '/api'
+// 根据 Vite 构建时注入的 base 路径，自动拼接 API 前缀
+// 部署在 /Worker/ 下时 → BASE_URL = '/Worker/api'
+// 本地开发（base='/'）时 → BASE_URL = '/api'
+const _base = (import.meta.env.BASE_URL || '/').replace(/\/+$/, '')
+const BASE_URL = `${_base}/api`
 const TOKEN_KEY = 'worker_auth_token'
 
 // ==================== SSO Token 接收 ====================

@@ -69,14 +69,17 @@ func getDateRange(period string) (startDate, endDate string) {
 	today := time.Now()
 	endDate = today.Format("2006-01-02")
 
-	if period == "week" {
+	switch period {
+	case "week":
 		weekday := int(today.Weekday())
 		if weekday == 0 {
 			weekday = 7
 		}
 		monday := today.AddDate(0, 0, -(weekday - 1))
 		startDate = monday.Format("2006-01-02")
-	} else {
+	case "year":
+		startDate = fmt.Sprintf("%d-01-01", today.Year())
+	default: // month
 		startDate = fmt.Sprintf("%d-%02d-01", today.Year(), today.Month())
 	}
 	return

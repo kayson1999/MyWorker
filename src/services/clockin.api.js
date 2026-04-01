@@ -48,6 +48,10 @@ export const rankingAPI = {
     return request(`/ranking/workhours?period=${period}`)
   },
 
+  getAvgWorkhours(period = 'week') {
+    return request(`/ranking/avgworkhours?period=${period}`)
+  },
+
   getEarly(period = 'week') {
     return request(`/ranking/early?period=${period}`)
   },

@@ -5,6 +5,10 @@ FROM node:18-alpine AS frontend-builder
 
 WORKDIR /app
 
+# 接收构建参数：子路径前缀（默认 '/'，部署在子路径时传入如 '/Worker/'）
+ARG APP_BASE_PATH=/
+ENV APP_BASE_PATH=${APP_BASE_PATH}
+
 # 先复制依赖描述文件，利用 Docker 缓存
 COPY package.json package-lock.json ./
 RUN npm ci

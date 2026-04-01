@@ -64,7 +64,8 @@ export default {
     const medals = ['🥇', '🥈', '🥉']
 
     const tabs = [
-      { id: 'workhours', icon: '🏆', label: '工时榜' },
+      { id: 'workhours', icon: '🏆', label: '总工时榜' },
+      { id: 'avgworkhours', icon: '📊', label: '日均工时' },
       { id: 'early', icon: '🌅', label: '早起榜' },
       { id: 'late', icon: '🌙', label: '夜猫榜' },
       { id: 'ontime', icon: '🎯', label: '准时榜' },
@@ -78,6 +79,9 @@ export default {
         switch (activeTab.value) {
           case 'workhours':
             data = await rankingAPI.getWorkhours(period.value)
+            break
+          case 'avgworkhours':
+            data = await rankingAPI.getAvgWorkhours(period.value)
             break
           case 'early':
             data = await rankingAPI.getEarly(period.value)

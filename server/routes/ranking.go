@@ -26,13 +26,14 @@ type RankItem struct {
 // RegisterRankingRoutes 注册排行榜路由（公开接口，无需登录）
 func RegisterRankingRoutes(mux *http.ServeMux) {
 	mux.Handle("/api/ranking/workhours", methodMiddleware("GET", http.HandlerFunc(handleWorkhoursRanking)))
+	mux.Handle("/api/ranking/avgworkhours", methodMiddleware("GET", http.HandlerFunc(handleAvgWorkhoursRanking)))
 	mux.Handle("/api/ranking/early", methodMiddleware("GET", http.HandlerFunc(handleEarlyRanking)))
 	mux.Handle("/api/ranking/late", methodMiddleware("GET", http.HandlerFunc(handleLateRanking)))
 	mux.Handle("/api/ranking/streak", methodMiddleware("GET", http.HandlerFunc(handleStreakRanking)))
 	mux.Handle("/api/ranking/ontime", methodMiddleware("GET", http.HandlerFunc(handleOntimeRanking)))
 }
 
-// handleWorkhoursRanking 工时榜
+// handleWorkhoursRanking 总工时榜
 func handleWorkhoursRanking(w http.ResponseWriter, r *http.Request) {
 	period := r.URL.Query().Get("period")
 	if period == "" {
@@ -51,7 +52,7 @@ func handleWorkhoursRanking(w http.ResponseWriter, r *http.Request) {
 		ORDER BY value DESC
 		LIMIT 50`, startDate, endDate)
 	if err != nil {
-		logger.Error("工时榜查询失败: %v", err)
+		logger.Error("总工时榜查询失败: %v", err)
 		writeJSON(w, http.StatusInternalServerError, map[string]string{"error": "查询失败"})
 		return
 	}
@@ -67,6 +68,60 @@ func handleWorkhoursRanking(w http.ResponseWriter, r *http.Request) {
 		item.Rank = rank
 		item.Value = math.Round(item.Value*100) / 100
 		item.Label = fmt.Sprintf("%.1fh", item.Value)
+		list = append(list, item)
+		rank++
+	}
+
+	if list == nil {
+		list = []RankItem{}
+	}
+
+	writeJSON(w, http.StatusOK, map[string]interface{}{
+		"period": period,
+		"list":   list,
+	})
+}
+
+// handleAvgWorkhoursRanking 日均工时榜
+func handleAvgWorkhoursRanking(w http.ResponseWriter, r *http.Request) {
+	period := r.URL.Query().Get("period")
+	if period == "" {
+		period = "week"
+	}
+	startDate, endDate := getDateRange(period)
+	d := db.GetDB()
+
+	// 查询每个用户的总工时和有效打卡天数（duration > 0 的天数）
+	rows, err := d.Query(`
+		SELECT u.id, u.nickname, u.avatar, u.profession, u.city,
+		       SUM(cr.duration) as total_hours,
+		       COUNT(CASE WHEN cr.duration > 0 THEN 1 END) as worked_days
+		FROM clock_records cr
+		JOIN users u ON u.id = cr.user_id
+		WHERE cr.date >= ? AND cr.date <= ? AND cr.duration > 0
+		GROUP BY cr.user_id
+		HAVING worked_days > 0
+		ORDER BY (total_hours / worked_days) DESC
+		LIMIT 50`, startDate, endDate)
+	if err != nil {
+		logger.Error("日均工时榜查询失败: %v", err)
+		writeJSON(w, http.StatusInternalServerError, map[string]string{"error": "查询失败"})
+		return
+	}
+	defer rows.Close()
+
+	var list []RankItem
+	rank := 1
+	for rows.Next() {
+		var item RankItem
+		var totalHours float64
+		var workedDays int
+		if err := rows.Scan(&item.UserID, &item.Nickname, &item.Avatar, &item.Profession, &item.City, &totalHours, &workedDays); err != nil {
+			continue
+		}
+		item.Rank = rank
+		item.Value = math.Round(totalHours/float64(workedDays)*100) / 100
+		item.Label = fmt.Sprintf("%.1fh/天", item.Value)
 		list = append(list, item)
 		rank++
 	}

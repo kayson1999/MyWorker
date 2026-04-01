@@ -8,6 +8,9 @@
       <button class="period-btn" :class="{ active: period === 'month' }" @click="switchPeriod('month')">
         🗓️ 本月
       </button>
+      <button class="period-btn" :class="{ active: period === 'year' }" @click="switchPeriod('year')">
+        📆 全年
+      </button>
     </div>
 
     <!-- 统计卡片 -->
@@ -49,26 +52,64 @@
       </div>
     </div>
 
-    <!-- 工时柱状图 -->
-    <div class="chart-section glass-card" v-if="stats && stats.records.length > 0">
-      <h3 class="chart-title">📊 每日工时</h3>
-      <div class="bar-chart">
-        <div class="bar-item" v-for="record in stats.records" :key="record.date">
-          <div class="bar-container">
-            <div class="bar" :style="{ height: barHeight(record.duration) + '%' }"
-                 :class="barClass(record.duration)">
-              <span class="bar-value font-mono" v-if="record.duration > 0">
-                {{ record.duration.toFixed(1) }}
-              </span>
+    <!-- 工时图表 -->
+    <div class="chart-section glass-card" v-if="stats && chartData.length > 0">
+      <div class="chart-header">
+        <h3 class="chart-title">📊 {{ period === 'year' ? '月度工时' : '每日工时' }}</h3>
+        <div class="chart-legend">
+          <span class="legend-item"><span class="legend-dot legend-overtime"></span>加班</span>
+          <span class="legend-item"><span class="legend-dot legend-normal"></span>达标</span>
+          <span class="legend-item"><span class="legend-dot legend-short"></span>不足</span>
+        </div>
+      </div>
+      <div class="chart-body">
+        <!-- Y轴 -->
+        <div class="chart-y-axis">
+          <span class="y-label font-mono" v-for="tick in yTicks" :key="tick" :style="{ bottom: (tick / maxY * 100) + '%' }">{{ tick }}h</span>
+        </div>
+        <!-- 图表主体 -->
+        <div class="chart-main">
+          <!-- 水平参考线 -->
+          <div class="grid-lines">
+            <div class="grid-line" v-for="tick in yTicks" :key="'g'+tick" :style="{ bottom: (tick / maxY * 100) + '%' }"></div>
+            <!-- 8h标准线 -->
+            <div class="standard-line" :style="{ bottom: (8 / maxY * 100) + '%' }">
+              <span class="standard-label font-mono">8h</span>
             </div>
           </div>
-          <span class="bar-label font-mono">{{ formatDate(record.date) }}</span>
+          <!-- 柱体区域 -->
+          <div class="bars-area">
+            <div class="bar-group" v-for="(item, idx) in chartData" :key="item.label"
+                 @mouseenter="activeBar = idx" @mouseleave="activeBar = -1">
+              <div class="bar-col">
+                <div class="bar-fill" :class="[barClass(item.value), { 'bar-active': activeBar === idx }]"
+                     :style="{ height: (item.value / maxY * 100) + '%', transitionDelay: (idx * 30) + 'ms' }">
+                </div>
+                <!-- 悬浮提示 -->
+                <transition name="tooltip-fade">
+                  <div class="bar-tooltip glass-card" v-if="activeBar === idx">
+                    <span class="tooltip-label">{{ item.fullLabel }}</span>
+                    <span class="tooltip-value font-mono">{{ item.value.toFixed(1) }}h</span>
+                  </div>
+                </transition>
+              </div>
+              <span class="bar-label font-mono" :class="{ 'label-active': activeBar === idx }">{{ item.label }}</span>
+            </div>
+          </div>
         </div>
+      </div>
+      <!-- 图表底部摘要 -->
+      <div class="chart-summary">
+        <span class="summary-item">平均 <strong class="font-mono">{{ stats.avgHours }}h</strong></span>
+        <span class="summary-divider">·</span>
+        <span class="summary-item">最高 <strong class="font-mono">{{ maxDuration.toFixed(1) }}h</strong></span>
+        <span class="summary-divider">·</span>
+        <span class="summary-item">共 <strong class="font-mono">{{ chartData.length }}</strong> {{ period === 'year' ? '个月' : '天' }}</span>
       </div>
     </div>
 
     <!-- 空状态 -->
-    <div class="empty-state glass-card" v-if="stats && stats.records.length === 0">
+    <div class="empty-state glass-card" v-if="stats && chartData.length === 0">
       <span class="empty-icon">📭</span>
       <p>暂无打卡记录，快去打卡吧！</p>
     </div>
@@ -82,7 +123,7 @@
 </template>
 
 <script>
-import { ref, onMounted } from 'vue'
+import { ref, computed, onMounted } from 'vue'
 import { clockinAPI } from '@/services/clockin.api.js'
 
 export default {
@@ -91,6 +132,7 @@ export default {
     const period = ref('week')
     const stats = ref(null)
     const loading = ref(false)
+    const activeBar = ref(-1)
 
     const fetchStats = async () => {
       loading.value = true
@@ -106,14 +148,68 @@ export default {
 
     const switchPeriod = (p) => {
       period.value = p
+      activeBar.value = -1
       fetchStats()
     }
 
-    const barHeight = (duration) => {
-      if (!duration) return 0
-      // 最大12小时为100%
-      return Math.min(100, (duration / 12) * 100)
-    }
+    // 图表数据：全年模式按月聚合，其他模式按天
+    const chartData = computed(() => {
+      if (!stats.value || !stats.value.records) return []
+      const records = stats.value.records
+
+      if (period.value === 'year') {
+        // 按月聚合
+        const monthMap = {}
+        records.forEach(r => {
+          const month = r.date.slice(0, 7) // YYYY-MM
+          if (!monthMap[month]) monthMap[month] = { total: 0, count: 0 }
+          monthMap[month].total += r.duration
+          monthMap[month].count++
+        })
+        const months = ['01','02','03','04','05','06','07','08','09','10','11','12']
+        const year = new Date().getFullYear()
+        return months
+          .filter(m => monthMap[year + '-' + m])
+          .map(m => {
+            const key = year + '-' + m
+            const d = monthMap[key]
+            return {
+              label: parseInt(m) + '月',
+              fullLabel: key,
+              value: Math.round(d.total / d.count * 100) / 100 // 月均日工时
+            }
+          })
+      }
+
+      return records.map(r => ({
+        label: r.date.slice(5), // MM-DD
+        fullLabel: r.date,
+        value: r.duration
+      }))
+    })
+
+    // 最大工时（用于Y轴缩放）
+    const maxDuration = computed(() => {
+      if (!chartData.value.length) return 0
+      return Math.max(...chartData.value.map(d => d.value))
+    })
+
+    // Y轴最大值（向上取整到偶数）
+    const maxY = computed(() => {
+      const m = maxDuration.value
+      if (m <= 10) return 12
+      return Math.ceil(m / 2) * 2 + 2
+    })
+
+    // Y轴刻度
+    const yTicks = computed(() => {
+      const ticks = []
+      const step = maxY.value <= 12 ? 2 : 4
+      for (let i = step; i <= maxY.value; i += step) {
+        ticks.push(i)
+      }
+      return ticks
+    })
 
     const barClass = (duration) => {
       if (duration >= 10) return 'bar-overtime'
@@ -121,13 +217,13 @@ export default {
       return 'bar-short'
     }
 
-    const formatDate = (dateStr) => {
-      return dateStr.slice(5) // MM-DD
-    }
-
     onMounted(fetchStats)
 
-    return { period, stats, loading, switchPeriod, barHeight, barClass, formatDate }
+    return {
+      period, stats, loading, activeBar,
+      switchPeriod, barClass,
+      chartData, maxDuration, maxY, yTicks
+    }
   }
 }
 </script>
@@ -207,77 +303,269 @@ export default {
   color: var(--text-muted);
 }
 
-/* 柱状图 */
+/* ===== 图表区域 ===== */
 .chart-section {
   padding: var(--space-6);
+  overflow: hidden;
+}
+
+.chart-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: var(--space-5);
 }
 
 .chart-title {
   font-size: var(--text-base);
   font-weight: 600;
   color: var(--text-primary);
-  margin-bottom: var(--space-5);
 }
 
-.bar-chart {
+.chart-legend {
+  display: flex;
+  gap: var(--space-4);
+  font-size: var(--text-xs);
+  color: var(--text-muted);
+}
+
+.legend-item {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+}
+
+.legend-dot {
+  width: 8px;
+  height: 8px;
+  border-radius: 2px;
+}
+
+.legend-overtime { background: linear-gradient(135deg, #F472B6, #A855F7); }
+.legend-normal { background: linear-gradient(135deg, #818CF8, #6366F1); }
+.legend-short { background: rgba(168, 85, 247, 0.25); }
+
+/* 图表主体布局 */
+.chart-body {
+  display: flex;
+  gap: 0;
+  height: 220px;
+  position: relative;
+}
+
+/* Y轴 */
+.chart-y-axis {
+  width: 36px;
+  position: relative;
+  flex-shrink: 0;
+}
+
+.y-label {
+  position: absolute;
+  right: 6px;
+  transform: translateY(50%);
+  font-size: 10px;
+  color: var(--text-muted);
+  line-height: 1;
+}
+
+/* 图表绘制区 */
+.chart-main {
+  flex: 1;
+  position: relative;
+  border-left: 1px solid rgba(168, 85, 247, 0.15);
+  border-bottom: 1px solid rgba(168, 85, 247, 0.15);
+}
+
+/* 网格线 */
+.grid-lines {
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+}
+
+.grid-line {
+  position: absolute;
+  left: 0;
+  right: 0;
+  height: 1px;
+  background: rgba(168, 85, 247, 0.06);
+}
+
+/* 8h标准线 */
+.standard-line {
+  position: absolute;
+  left: 0;
+  right: 0;
+  height: 1px;
+  background: repeating-linear-gradient(
+    90deg,
+    rgba(99, 102, 241, 0.4) 0px,
+    rgba(99, 102, 241, 0.4) 4px,
+    transparent 4px,
+    transparent 8px
+  );
+  z-index: 2;
+}
+
+.standard-label {
+  position: absolute;
+  right: 4px;
+  top: -14px;
+  font-size: 9px;
+  color: rgba(99, 102, 241, 0.7);
+  background: var(--bg-secondary);
+  padding: 0 3px;
+  border-radius: 2px;
+}
+
+/* 柱体区域 */
+.bars-area {
   display: flex;
   align-items: flex-end;
-  gap: var(--space-3);
-  height: 200px;
-  padding-top: var(--space-4);
+  height: 100%;
+  padding: 0 8px;
+  gap: 2px;
+  position: relative;
+  z-index: 3;
 }
 
-.bar-item {
+.bar-group {
   flex: 1;
   display: flex;
   flex-direction: column;
   align-items: center;
-  gap: var(--space-2);
   height: 100%;
+  min-width: 0;
+  cursor: pointer;
 }
 
-.bar-container {
+.bar-col {
   flex: 1;
   width: 100%;
   display: flex;
   align-items: flex-end;
   justify-content: center;
-}
-
-.bar {
-  width: 70%;
-  max-width: 40px;
-  border-radius: var(--radius-sm) var(--radius-sm) 0 0;
-  transition: height 0.5s ease;
   position: relative;
-  min-height: 4px;
 }
 
-.bar-value {
+.bar-fill {
+  width: 60%;
+  max-width: 36px;
+  min-width: 6px;
+  min-height: 3px;
+  border-radius: 4px 4px 1px 1px;
+  transition: height 0.6s cubic-bezier(0.34, 1.56, 0.64, 1), filter 0.2s ease, transform 0.2s ease;
+  position: relative;
+}
+
+.bar-fill.bar-active {
+  filter: brightness(1.3);
+  transform: scaleX(1.1);
+}
+
+.bar-fill.bar-normal {
+  background: linear-gradient(180deg, #818CF8 0%, #6366F1 100%);
+  box-shadow: 0 2px 8px rgba(99, 102, 241, 0.3);
+}
+
+.bar-fill.bar-overtime {
+  background: linear-gradient(180deg, #F472B6 0%, #A855F7 100%);
+  box-shadow: 0 2px 8px rgba(168, 85, 247, 0.3);
+}
+
+.bar-fill.bar-short {
+  background: linear-gradient(180deg, rgba(168, 85, 247, 0.35) 0%, rgba(168, 85, 247, 0.15) 100%);
+}
+
+/* 悬浮提示 */
+.bar-tooltip {
   position: absolute;
-  top: -20px;
+  bottom: calc(100% + 8px);
   left: 50%;
   transform: translateX(-50%);
+  padding: 6px 10px;
+  border-radius: 8px;
+  white-space: nowrap;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 2px;
+  z-index: 10;
+  pointer-events: none;
+  border: 1px solid rgba(168, 85, 247, 0.2) !important;
+  background: var(--bg-secondary) !important;
+  box-shadow: 0 4px 20px rgba(0, 0, 0, 0.3);
+}
+
+.bar-tooltip::after {
+  content: '';
+  position: absolute;
+  top: 100%;
+  left: 50%;
+  transform: translateX(-50%);
+  border: 5px solid transparent;
+  border-top-color: rgba(168, 85, 247, 0.2);
+}
+
+.tooltip-label {
   font-size: 10px;
-  color: var(--text-secondary);
+  color: var(--text-muted);
+}
+
+.tooltip-value {
+  font-size: 13px;
+  font-weight: 700;
+  color: var(--color-primary-light);
+}
+
+.tooltip-fade-enter-active,
+.tooltip-fade-leave-active {
+  transition: opacity 0.15s ease, transform 0.15s ease;
+}
+
+.tooltip-fade-enter-from,
+.tooltip-fade-leave-to {
+  opacity: 0;
+  transform: translateX(-50%) translateY(4px);
+}
+
+/* 柱体下方标签 */
+.bar-label {
+  font-size: 9px;
+  color: var(--text-muted);
+  padding-top: 6px;
+  transition: color 0.2s ease;
+  text-align: center;
+  width: 100%;
+  overflow: hidden;
+  text-overflow: ellipsis;
   white-space: nowrap;
 }
 
-.bar-normal {
-  background: var(--gradient-primary);
+.bar-label.label-active {
+  color: var(--color-primary-light);
 }
 
-.bar-overtime {
-  background: linear-gradient(180deg, #F472B6, #A855F7);
-}
-
-.bar-short {
-  background: rgba(168, 85, 247, 0.3);
-}
-
-.bar-label {
-  font-size: 10px;
+/* 图表底部摘要 */
+.chart-summary {
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  gap: var(--space-3);
+  margin-top: var(--space-5);
+  padding-top: var(--space-4);
+  border-top: 1px solid rgba(168, 85, 247, 0.08);
+  font-size: var(--text-xs);
   color: var(--text-muted);
+}
+
+.summary-item strong {
+  color: var(--color-primary-light);
+}
+
+.summary-divider {
+  color: rgba(168, 85, 247, 0.2);
 }
 
 /* 空状态 */
@@ -308,6 +596,10 @@ export default {
 
 @media (max-width: 768px) {
   .stats-grid { grid-template-columns: repeat(2, 1fr); }
-  .bar-chart { gap: var(--space-1); }
+  .chart-body { height: 180px; }
+  .chart-legend { display: none; }
+  .chart-header { margin-bottom: var(--space-3); }
+  .bar-fill { max-width: 24px; }
+  .bars-area { padding: 0 4px; }
 }
 </style>
