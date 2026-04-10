@@ -333,27 +333,7 @@ func handleRecords(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	d := db.GetDB()
-	rows, err := d.Query(
-		"SELECT id, user_id, date, clock_in, clock_out, duration, is_manual, created_at FROM clock_records WHERE user_id = ? AND date >= ? AND date <= ? ORDER BY date ASC",
-		userID, start, end,
-	)
-	if err != nil {
-		logger.Error("查询记录失败: %v", err)
-		writeJSON(w, http.StatusInternalServerError, map[string]string{"error": "查询失败"})
-		return
-	}
-	defer rows.Close()
-
-	var records []ClockRecord
-	for rows.Next() {
-		var rec ClockRecord
-		if err := rows.Scan(&rec.ID, &rec.UserID, &rec.Date, &rec.ClockIn, &rec.ClockOut, &rec.Duration, &rec.IsManual, &rec.CreatedAt); err != nil {
-			continue
-		}
-		records = append(records, rec)
-	}
-
+	records := queryRecordsByUserAndDateRange(db.GetDB(), userID, start, end)
 	if records == nil {
 		records = []ClockRecord{}
 	}
@@ -374,25 +354,7 @@ func handleStats(w http.ResponseWriter, r *http.Request) {
 	startDate, endDate := getDateRange(period)
 	d := db.GetDB()
 
-	rows, err := d.Query(
-		"SELECT id, user_id, date, clock_in, clock_out, duration, is_manual, created_at FROM clock_records WHERE user_id = ? AND date >= ? AND date <= ? ORDER BY date ASC",
-		userID, startDate, endDate,
-	)
-	if err != nil {
-		logger.Error("统计失败: %v", err)
-		writeJSON(w, http.StatusInternalServerError, map[string]string{"error": "统计失败"})
-		return
-	}
-	defer rows.Close()
-
-	var records []ClockRecord
-	for rows.Next() {
-		var rec ClockRecord
-		if err := rows.Scan(&rec.ID, &rec.UserID, &rec.Date, &rec.ClockIn, &rec.ClockOut, &rec.Duration, &rec.IsManual, &rec.CreatedAt); err != nil {
-			continue
-		}
-		records = append(records, rec)
-	}
+	records := queryRecordsByUserAndDateRange(d, userID, startDate, endDate)
 
 	totalDays := len(records)
 	totalHours := 0.0
@@ -433,13 +395,13 @@ func handleStats(w http.ResponseWriter, r *http.Request) {
 		latestOut = &clockOutTimes[0]
 	}
 
-	// 连续打卡天数
+	// 连续打卡天数（从昨天开始往前数，因为今天还没结束）
 	streak := 0
 	dateSet := make(map[string]bool)
 	for _, rec := range records {
 		dateSet[rec.Date] = true
 	}
-	checkDate := time.Now()
+	checkDate := time.Now().AddDate(0, 0, -1)
 	for {
 		ds := checkDate.Format("2006-01-02")
 		if dateSet[ds] {
@@ -452,7 +414,7 @@ func handleStats(w http.ResponseWriter, r *http.Request) {
 
 	// 获取用户标准时间
 	var standardStart string
-	err = d.QueryRow("SELECT standard_start FROM users WHERE id = ?", userID).Scan(&standardStart)
+	err := d.QueryRow("SELECT standard_start FROM users WHERE id = ?", userID).Scan(&standardStart)
 	if err != nil {
 		standardStart = "09:00"
 	}

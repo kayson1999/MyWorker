@@ -120,6 +120,9 @@ func handleLogin(w http.ResponseWriter, r *http.Request) {
 func handleLogout(w http.ResponseWriter, r *http.Request) {
 	token := middleware.GetToken(r)
 
+	// 清除 token 验证缓存
+	middleware.CacheRemove(token)
+
 	result, err := usercenter.Logout(token)
 	if err != nil {
 		logger.Error("登出失败: %v", err)

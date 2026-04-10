@@ -25,15 +25,8 @@ func RegisterUserRoutes(mux *http.ServeMux) {
 	}))
 }
 
-// handleGetProfile 获取个人信息
-func handleGetProfile(w http.ResponseWriter, r *http.Request) {
-	ucUser := middleware.GetUCUser(r)
-	userID := middleware.GetUserID(r)
-
-	// 确保本地用户记录存在
-	localuser.EnsureLocalUserExists(ucUser)
-
-	// 从本地获取业务字段
+// buildUserResponse 构建用户信息响应（合并用户中心信息与本地业务字段）
+func buildUserResponse(ucUser *usercenter.UCUser, userID string) map[string]interface{} {
 	lu := localuser.GetLocalUser(userID)
 
 	profession := localuser.LocalDefaults["profession"]
@@ -64,19 +57,30 @@ func handleGetProfile(w http.ResponseWriter, r *http.Request) {
 		}
 	}
 
+	return map[string]interface{}{
+		"id":             ucUser.ID,
+		"username":       ucUser.Username,
+		"nickname":       ucUser.Nickname,
+		"avatar":         ucUser.Avatar,
+		"profession":     profession,
+		"position":       position,
+		"city":           city,
+		"standard_start": standardStart,
+		"standard_end":   standardEnd,
+		"created_at":     createdAt,
+	}
+}
+
+// handleGetProfile 获取个人信息
+func handleGetProfile(w http.ResponseWriter, r *http.Request) {
+	ucUser := middleware.GetUCUser(r)
+	userID := middleware.GetUserID(r)
+
+	// 确保本地用户记录存在
+	localuser.EnsureLocalUserExists(ucUser)
+
 	writeJSON(w, http.StatusOK, map[string]interface{}{
-		"user": map[string]interface{}{
-			"id":             ucUser.ID,
-			"username":       ucUser.Username,
-			"nickname":       ucUser.Nickname,
-			"avatar":         ucUser.Avatar,
-			"profession":     profession,
-			"position":       position,
-			"city":           city,
-			"standard_start": standardStart,
-			"standard_end":   standardEnd,
-			"created_at":     createdAt,
-		},
+		"user": buildUserResponse(ucUser, userID),
 	})
 }
 
@@ -157,50 +161,8 @@ func handleUpdateProfile(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	// 获取更新后的本地用户
-	lu := localuser.GetLocalUser(userID)
-
-	profession := localuser.LocalDefaults["profession"]
-	position := localuser.LocalDefaults["position"]
-	city := localuser.LocalDefaults["city"]
-	standardStart := localuser.LocalDefaults["standard_start"]
-	standardEnd := localuser.LocalDefaults["standard_end"]
-	createdAt := currentUCUser.CreatedAt
-
-	if lu != nil {
-		if lu.Profession != "" {
-			profession = lu.Profession
-		}
-		if lu.Position != "" {
-			position = lu.Position
-		}
-		if lu.City != "" {
-			city = lu.City
-		}
-		if lu.StandardStart != "" {
-			standardStart = lu.StandardStart
-		}
-		if lu.StandardEnd != "" {
-			standardEnd = lu.StandardEnd
-		}
-		if lu.CreatedAt != "" {
-			createdAt = lu.CreatedAt
-		}
-	}
-
 	writeJSON(w, http.StatusOK, map[string]interface{}{
-		"user": map[string]interface{}{
-			"id":             currentUCUser.ID,
-			"username":       currentUCUser.Username,
-			"nickname":       currentUCUser.Nickname,
-			"avatar":         currentUCUser.Avatar,
-			"profession":     profession,
-			"position":       position,
-			"city":           city,
-			"standard_start": standardStart,
-			"standard_end":   standardEnd,
-			"created_at":     createdAt,
-		},
+		"user": buildUserResponse(currentUCUser, userID),
 	})
 }
 

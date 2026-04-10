@@ -2,7 +2,7 @@
  * 打卡业务 — 前端 API 封装层
  */
 
-export { authAPI, userAPI, isLoggedIn, clearToken } from './auth.api.js'
+export { authAPI, userAPI } from './auth.api.js'
 import { request } from './auth.api.js'
 
 // ==================== 打卡 ====================

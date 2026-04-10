@@ -31,6 +31,7 @@ usage() {
     echo ""
     echo "命令:"
     echo "  start       启动本地开发环境（前端 + Go 后端）"
+    echo "  stop        停止本地开发环境（杀死前端 + Go 后端进程）"
     echo "  start-prod  本地生产模式（构建前端 + 编译并启动 Go 后端）"
     echo "  docker      Docker Compose 构建并启动"
     echo "  docker-stop Docker Compose 停止服务"
@@ -41,6 +42,7 @@ usage() {
     echo ""
     echo "示例:"
     echo "  $0 start          # 本地开发"
+    echo "  $0 stop           # 停止本地开发服务"
     echo "  $0 docker         # Docker 一键部署"
     echo ""
 }
@@ -125,7 +127,7 @@ do_prod() {
     info "服务地址: http://localhost:8008"
     echo ""
 
-    ./myworker-server
+    DB_DIR="$SCRIPT_DIR/server/data" ./myworker-server
 }
 
 # Docker 部署
@@ -187,6 +189,44 @@ do_docker_logs() {
     $COMPOSE_CMD logs -f
 }
 
+# 停止本地开发环境（杀死前端 + Go 后端进程）
+do_stop() {
+    info "正在停止本地开发服务..."
+
+    # 停止 Go 后端进程（通过 go run 启动的 myworker 或 server 进程）
+    BACKEND_PIDS=$(pgrep -f 'go run \.|go-build.*server|myworker-server' 2>/dev/null || true)
+    if [ -n "$BACKEND_PIDS" ]; then
+        echo "$BACKEND_PIDS" | xargs kill 2>/dev/null || true
+        ok "Go 后端进程已停止 (PID: $(echo $BACKEND_PIDS | tr '\n' ' '))"
+    else
+        warn "未发现运行中的 Go 后端进程"
+    fi
+
+    # 停止前端 Vite 开发服务器进程
+    FRONTEND_PIDS=$(pgrep -f 'vite|node.*dev' 2>/dev/null || true)
+    if [ -n "$FRONTEND_PIDS" ]; then
+        echo "$FRONTEND_PIDS" | xargs kill 2>/dev/null || true
+        ok "前端开发服务器已停止 (PID: $(echo $FRONTEND_PIDS | tr '\n' ' '))"
+    else
+        warn "未发现运行中的前端开发服务器进程"
+    fi
+
+    # 检查端口是否已释放
+    sleep 1
+    if ss -tlnp 2>/dev/null | grep -qE ':3002|:8008'; then
+        warn "部分端口仍被占用，尝试强制终止..."
+        fuser -k 3002/tcp 2>/dev/null || true
+        fuser -k 8008/tcp 2>/dev/null || true
+        sleep 1
+    fi
+
+    if ss -tlnp 2>/dev/null | grep -qE ':3002|:8008'; then
+        error "端口仍被占用，请手动检查进程"
+    else
+        ok "所有本地开发服务已停止 ✅"
+    fi
+}
+
 # 构建
 do_build() {
     check_cmd node
@@ -213,6 +253,9 @@ do_build() {
 case "${1:-help}" in
     start)
         do_dev
+        ;;
+    stop)
+        do_stop
         ;;
     start-prod)
         do_prod

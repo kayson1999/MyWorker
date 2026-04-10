@@ -13,14 +13,45 @@ import (
 
 // RankItem 排行榜项
 type RankItem struct {
-	Rank       int     `json:"rank"`
-	UserID     string  `json:"userId"`
-	Nickname   string  `json:"nickname"`
-	Avatar     string  `json:"avatar"`
-	Profession string  `json:"profession"`
-	City       string  `json:"city"`
-	Value      float64 `json:"value"`
-	Label      string  `json:"label"`
+	Rank       int             `json:"rank"`
+	UserID     string          `json:"userId"`
+	Nickname   string          `json:"nickname"`
+	Avatar     string          `json:"avatar"`
+	Profession string          `json:"profession"`
+	City       string          `json:"city"`
+	Value      float64         `json:"value"`
+	Label      string          `json:"label"`
+	Plans      []RankPlanBrief `json:"plans,omitempty"` // 用户的公开计划摘要（仅计划排行榜使用）
+}
+
+// RankPlanBrief 排行榜中展示的计划摘要
+type RankPlanBrief struct {
+	Title   string `json:"title"`
+	Content string `json:"content"`
+	Icon    string `json:"icon"`
+}
+
+// finalizeRankList 对排行榜列表进行排序、截断和设置排名
+func finalizeRankList(list []RankItem, descending bool) []RankItem {
+	if descending {
+		sort.Slice(list, func(i, j int) bool {
+			return list[i].Value > list[j].Value
+		})
+	} else {
+		sort.Slice(list, func(i, j int) bool {
+			return list[i].Value < list[j].Value
+		})
+	}
+	if len(list) > 50 {
+		list = list[:50]
+	}
+	for i := range list {
+		list[i].Rank = i + 1
+	}
+	if list == nil {
+		list = []RankItem{}
+	}
+	return list
 }
 
 // RegisterRankingRoutes 注册排行榜路由（公开接口，无需登录）
@@ -296,7 +327,8 @@ func handleStreakRanking(w http.ResponseWriter, r *http.Request) {
 		dateRows.Close()
 
 		streak := 0
-		checkDate := today
+		// 今天还没结束，连续打卡截止到昨天开始计算
+		checkDate := today.AddDate(0, 0, -1)
 		for {
 			ds := checkDate.Format("2006-01-02")
 			if dateSet[ds] {
@@ -320,22 +352,7 @@ func handleStreakRanking(w http.ResponseWriter, r *http.Request) {
 		}
 	}
 
-	// 排序
-	sort.Slice(list, func(i, j int) bool {
-		return list[i].Value > list[j].Value
-	})
-
-	// 限制 50 条并设置排名
-	if len(list) > 50 {
-		list = list[:50]
-	}
-	for i := range list {
-		list[i].Rank = i + 1
-	}
-
-	if list == nil {
-		list = []RankItem{}
-	}
+	list = finalizeRankList(list, true)
 
 	writeJSON(w, http.StatusOK, map[string]interface{}{
 		"list": list,
@@ -419,21 +436,7 @@ func handleOntimeRanking(w http.ResponseWriter, r *http.Request) {
 		})
 	}
 
-	// 排序
-	sort.Slice(list, func(i, j int) bool {
-		return list[i].Value > list[j].Value
-	})
-
-	if len(list) > 50 {
-		list = list[:50]
-	}
-	for i := range list {
-		list[i].Rank = i + 1
-	}
-
-	if list == nil {
-		list = []RankItem{}
-	}
+	list = finalizeRankList(list, true)
 
 	writeJSON(w, http.StatusOK, map[string]interface{}{
 		"period": period,

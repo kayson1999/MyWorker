@@ -11,7 +11,7 @@ services:
       - "8008:8008"
     volumes:
       # 持久化 SQLite 数据库文件
-      - myworker-data:/app/db
+      - myworker-data:/app/data
       # 持久化日志文件
       - myworker-logs:/app/logs
     environment:

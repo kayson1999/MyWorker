@@ -66,22 +66,43 @@ export function isLoggedIn() {
 
 export async function request(path, options = {}) {
   const token = getToken()
+
+  // 请求超时控制（8秒）
+  const controller = new AbortController()
+  const timeoutId = setTimeout(() => controller.abort(), 8000)
+
   const config = {
     headers: {
       'Content-Type': 'application/json',
       ...(token ? { Authorization: `Bearer ${token}` } : {})
     },
+    signal: controller.signal,
     ...options
   }
 
-  const res = await fetch(`${BASE_URL}${path}`, config)
+  let res
+  try {
+    res = await fetch(`${BASE_URL}${path}`, config)
+  } catch (err) {
+    clearTimeout(timeoutId)
+    if (err.name === 'AbortError') {
+      throw { code: 'TIMEOUT', message: '请求超时，请稍后重试' }
+    }
+    throw { code: 'NETWORK_ERROR', message: '网络连接失败，请检查网络' }
+  }
+  clearTimeout(timeoutId)
+
   const data = await res.json()
 
   if (!res.ok) {
     if (res.status === 401) {
-      clearToken()
+      // 只有真正的认证过期才清除 token（排除并发请求中 token 已被清除的情况）
+      if (getToken()) {
+        clearToken()
+      }
       throw { code: 'AUTH_EXPIRED', message: data.error || '登录已过期' }
     }
+    // 503 等服务端临时错误不清除 token，不触发退出登录
     throw { code: 'API_ERROR', message: data.error || '请求失败', status: res.status }
   }
 

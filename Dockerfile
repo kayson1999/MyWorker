@@ -62,7 +62,7 @@ COPY --from=backend-builder /app/myworker-server ./
 COPY --from=frontend-builder /app/dist ./dist/
 
 # 创建数据目录和日志目录
-RUN mkdir -p /app/db /app/logs
+RUN mkdir -p /app/data /app/logs
 
 # 默认环境变量
 ENV PORT=8008

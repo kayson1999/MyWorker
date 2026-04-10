@@ -5,7 +5,7 @@
     <!-- 全局登录弹窗 -->
     <teleport to="body">
       <div class="login-modal-overlay" v-if="authStore.showLoginModal.value" @click.self="authStore.closeLogin()">
-        <ClockInLogin @login-success="handleLoginSuccess" />
+        <ClockInLogin @login-success="handleLoginSuccess" @close="authStore.closeLogin()" />
       </div>
     </teleport>
   </div>

@@ -33,8 +33,14 @@ async function init() {
     const data = await userAPI.getProfile()
     currentUser.value = data.user
   } catch (err) {
-    clearToken()
-    currentUser.value = null
+    // 只有认证真正过期才清除 token 和用户状态
+    // 网络错误、服务端临时错误（503等）不清除，避免误退出登录
+    if (err.code === 'AUTH_EXPIRED') {
+      clearToken()
+      currentUser.value = null
+    } else {
+      console.warn('获取用户信息失败（非认证过期）:', err.message)
+    }
   } finally {
     loading.value = false
   }

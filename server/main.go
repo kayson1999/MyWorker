@@ -27,15 +27,16 @@ func main() {
 	})
 
 	// 初始化数据库
-	// 数据库目录：工作目录/db（避免 go run 时存到临时目录导致数据丢失）
-	cwd, err := os.Getwd()
-	if err != nil {
-		cwd = "."
+	// 优先使用环境变量 DB_DIR，否则使用工作目录/data
+	dbDir := os.Getenv("DB_DIR")
+	if dbDir == "" {
+		cwd, _ := os.Getwd()
+		dbDir = filepath.Join(cwd, "data")
 	}
-	dbDir := filepath.Join(cwd, "data")
 	os.MkdirAll(dbDir, 0755)
 	db.SetDBDir(dbDir)
 	db.GetDB()
+	routes.InitPlanTables()
 	defer db.Close()
 
 	logger.Info("✅ 数据库初始化完成")
@@ -50,6 +51,8 @@ func main() {
 	routes.RegisterUserRoutes(mux)
 	routes.RegisterClockinRoutes(mux)
 	routes.RegisterRankingRoutes(mux)
+	routes.RegisterPlanRoutes(mux)
+	routes.RegisterPlanRankingRoutes(mux)
 
 	// 健康检查
 	mux.HandleFunc("/api/health", func(w http.ResponseWriter, r *http.Request) {

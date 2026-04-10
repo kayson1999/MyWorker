@@ -25,20 +25,21 @@ func SetDBDir(dir string) {
 func GetDB() *sql.DB {
 	once.Do(func() {
 		if dbDir == "" {
-			dbDir = "./db"
+			dbDir = "./data"
 		}
 		dbPath := filepath.Join(dbDir, "clockin.db")
 
 		var err error
-		instance, err = sql.Open("sqlite3", dbPath+"?_journal_mode=WAL&_foreign_keys=ON")
+		instance, err = sql.Open("sqlite3", dbPath+"?_journal_mode=WAL&_foreign_keys=ON&_busy_timeout=5000")
 		if err != nil {
 			logger.Error("打开数据库失败: %v", err)
 			panic(err)
 		}
 
 		// 设置连接池
-		instance.SetMaxOpenConns(1) // SQLite 单写
-		instance.SetMaxIdleConns(1)
+		// SQLite 在 WAL 模式下支持多读单写；保留少量并发连接可避免登录等请求因单连接被占用而长时间阻塞。
+		instance.SetMaxOpenConns(10)
+		instance.SetMaxIdleConns(5)
 
 		initTables()
 	})

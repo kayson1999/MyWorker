@@ -2,6 +2,7 @@ package usercenter
 
 import (
 	"bytes"
+	"context"
 	"encoding/json"
 	"fmt"
 	"io"
@@ -29,13 +30,26 @@ type UCUser struct {
 }
 
 var httpClient = &http.Client{
-	Timeout: 10 * time.Second,
+	Timeout: 5 * time.Second,
+	Transport: &http.Transport{
+		MaxIdleConns:          20,
+		MaxConnsPerHost:       20,
+		MaxIdleConnsPerHost:   10,
+		IdleConnTimeout:       30 * time.Second,
+		DisableKeepAlives:     false,
+		ForceAttemptHTTP2:     false,
+		ResponseHeaderTimeout: 5 * time.Second,
+	},
 }
 
 // ucRequest 向用户中心发起请求
 func ucRequest(path string, method string, body interface{}, bearerToken string) (*UCResponse, error) {
 	cfg := config.C
 	url := fmt.Sprintf("%s%s", cfg.UserCenterURL, path)
+
+	// 为每个请求设置独立的超时上下文，防止连接池耗尽时请求无限等待
+	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+	defer cancel()
 
 	var reqBody io.Reader
 	if body != nil {
@@ -46,7 +60,7 @@ func ucRequest(path string, method string, body interface{}, bearerToken string)
 		reqBody = bytes.NewReader(jsonData)
 	}
 
-	req, err := http.NewRequest(method, url, reqBody)
+	req, err := http.NewRequestWithContext(ctx, method, url, reqBody)
 	if err != nil {
 		return nil, fmt.Errorf("创建请求失败: %w", err)
 	}

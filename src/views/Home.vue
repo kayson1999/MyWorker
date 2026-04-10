@@ -23,7 +23,7 @@
       </div>
     </section>
 
-    <!-- Tab 切换 -->
+    <!-- 主 Tab 切换 -->
     <div class="container">
       <div class="main-tabs">
         <button v-for="tab in mainTabs" :key="tab.id" class="main-tab"
@@ -35,11 +35,20 @@
 
     <!-- 内容区域 -->
     <div class="container content-area">
-      <!-- 打卡面板：需要登录 -->
+
+      <!-- ========== 工时打卡（含打卡 + 统计子Tab） ========== -->
       <div v-show="activeTab === 'clockin'">
-        <ClockInPanel v-if="authStore.isLoggedIn.value"
-          ref="panelRef"
-          @record-updated="handleRecordUpdated" />
+        <template v-if="authStore.isLoggedIn.value">
+          <!-- 子Tab切换 -->
+          <div class="sub-tabs">
+            <button class="sub-tab" :class="{ active: clockinSubTab === 'punch' }" @click="clockinSubTab = 'punch'">🕐 打卡</button>
+            <button class="sub-tab" :class="{ active: clockinSubTab === 'stats' }" @click="clockinSubTab = 'stats'">📊 统计</button>
+          </div>
+          <ClockInPanel v-show="clockinSubTab === 'punch'"
+            ref="panelRef"
+            @record-updated="handleRecordUpdated" />
+          <ClockInStats v-show="clockinSubTab === 'stats'" ref="statsRef" />
+        </template>
         <div v-else class="need-login-card glass-card">
           <span class="need-login-icon">🔒</span>
           <p class="need-login-text">登录后即可使用打卡功能，记录每一天的努力</p>
@@ -47,20 +56,29 @@
         </div>
       </div>
 
-      <!-- 统计：需要登录 -->
-      <div v-show="activeTab === 'stats'">
-        <ClockInStats v-if="authStore.isLoggedIn.value" ref="statsRef" />
+      <!-- ========== 计划签到 ========== -->
+      <div v-show="activeTab === 'plan'">
+        <template v-if="authStore.isLoggedIn.value">
+          <PlanPanel />
+        </template>
         <div v-else class="need-login-card glass-card">
-          <span class="need-login-icon">📊</span>
-          <p class="need-login-text">登录后查看你的打卡统计数据</p>
+          <span class="need-login-icon">🎯</span>
+          <p class="need-login-text">登录后即可创建计划，在日历上打卡签到</p>
           <button class="need-login-btn" @click="authStore.openLogin()">🔑 立即登录</button>
         </div>
       </div>
 
-      <!-- 排行榜：公开可见 -->
-      <ClockInRanking v-show="activeTab === 'ranking'" />
+      <!-- ========== 排行榜（公开可见） ========== -->
+      <div v-show="activeTab === 'ranking'">
+        <div class="sub-tabs">
+          <button class="sub-tab" :class="{ active: rankingType === 'clockin' }" @click="rankingType = 'clockin'">🕐 工时排行</button>
+          <button class="sub-tab" :class="{ active: rankingType === 'plan' }" @click="rankingType = 'plan'">🎯 计划排行</button>
+        </div>
+        <ClockInRanking v-show="rankingType === 'clockin'" />
+        <PlanRanking v-show="rankingType === 'plan'" />
+      </div>
 
-      <!-- 个人资料：需要登录 -->
+      <!-- ========== 我的（需要登录） ========== -->
       <div v-show="activeTab === 'profile'">
         <ClockInProfile v-if="authStore.isLoggedIn.value"
           :user="authStore.currentUser.value"
@@ -82,18 +100,21 @@ import ClockInProfile from '@/components/clockin/ClockInProfile.vue'
 import ClockInPanel from '@/components/clockin/ClockInPanel.vue'
 import ClockInStats from '@/components/clockin/ClockInStats.vue'
 import ClockInRanking from '@/components/clockin/ClockInRanking.vue'
+import PlanPanel from '@/components/plan/PlanPanel.vue'
+import PlanRanking from '@/components/plan/PlanRanking.vue'
 
 export default {
   name: 'Home',
-  components: { ClockInProfile, ClockInPanel, ClockInStats, ClockInRanking },
+  components: { ClockInProfile, ClockInPanel, ClockInStats, ClockInRanking, PlanPanel, PlanRanking },
   setup() {
-    const activeTab = ref('ranking')
+    const activeTab = ref('clockin')
+    const clockinSubTab = ref('punch')
     const panelRef = ref(null)
     const statsRef = ref(null)
 
     const mainTabs = [
-      { id: 'clockin', icon: '🕐', label: '打卡' },
-      { id: 'stats', icon: '📊', label: '统计' },
+      { id: 'clockin', icon: '⏰', label: '工时打卡' },
+      { id: 'plan', icon: '🎯', label: '计划签到' },
       { id: 'ranking', icon: '🏆', label: '排行榜' },
       { id: 'profile', icon: '👤', label: '我的' }
     ]
@@ -108,8 +129,10 @@ export default {
       await authStore.logout()
     }
 
+    const rankingType = ref('clockin')
+
     return {
-      authStore, activeTab, mainTabs, panelRef, statsRef,
+      authStore, activeTab, clockinSubTab, mainTabs, panelRef, statsRef, rankingType,
       handleProfileUpdated, handleRecordUpdated, handleLogout
     }
   }
@@ -260,7 +283,7 @@ export default {
   transform: translateY(-2px);
 }
 
-/* Tab 切换 */
+/* 主 Tab 切换 */
 .main-tabs {
   display: flex;
   gap: var(--space-2);
@@ -294,6 +317,40 @@ export default {
 .main-tab:hover:not(.active) {
   color: var(--text-primary);
   background: var(--bg-tertiary);
+}
+
+/* 子 Tab 切换（工时打卡内的打卡/统计、排行榜内的工时/计划） */
+.sub-tabs {
+  display: flex;
+  gap: var(--space-2);
+  margin-bottom: var(--space-5);
+  padding: var(--space-1);
+  background: var(--bg-secondary);
+  border: 1px solid var(--border-color);
+  border-radius: var(--radius-lg);
+}
+
+.sub-tab {
+  flex: 1;
+  padding: var(--space-2) var(--space-4);
+  background: transparent;
+  border: none;
+  border-radius: var(--radius-md);
+  color: var(--text-muted);
+  font-size: var(--text-sm);
+  font-weight: 500;
+  cursor: pointer;
+  transition: all 0.3s ease;
+  text-align: center;
+}
+
+.sub-tab.active {
+  background: rgba(168, 85, 247, 0.15);
+  color: var(--color-primary-light);
+}
+
+.sub-tab:hover:not(.active) {
+  color: var(--text-primary);
 }
 
 /* 内容区域 */
