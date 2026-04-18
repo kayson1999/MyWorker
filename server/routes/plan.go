@@ -541,8 +541,15 @@ func calcPlanStreak(planID int, today time.Time) int {
 	}
 
 	streak := 0
-	// 今天还没结束，连续打卡截止到昨天开始计算
-	checkDate := today.AddDate(0, 0, -1)
+	// 如果今天已打卡，则从今天开始计入连续天数；
+	// 否则（今天未打卡）从昨天开始向前计算，避免"今天还没到打卡时间"导致连续天数清零。
+	var checkDate time.Time
+	todayStr := today.Format("2006-01-02")
+	if dateSet[todayStr] {
+		checkDate = today
+	} else {
+		checkDate = today.AddDate(0, 0, -1)
+	}
 	for {
 		ds := checkDate.Format("2006-01-02")
 		if dateSet[ds] {
