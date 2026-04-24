@@ -61,6 +61,12 @@ func initTables() {
 		city TEXT DEFAULT '',
 		standard_start TEXT DEFAULT '09:00',
 		standard_end TEXT DEFAULT '18:00',
+		year_title TEXT DEFAULT '',
+		month_title TEXT DEFAULT '',
+		week_title TEXT DEFAULT '',
+		level INTEGER DEFAULT 1,
+		exp INTEGER DEFAULT 0,
+		total_exp INTEGER DEFAULT 0,
 		created_at TEXT DEFAULT (datetime('now', 'localtime'))
 	);
 
@@ -77,8 +83,34 @@ func initTables() {
 		UNIQUE(user_id, date)
 	);
 
+	-- 经验值日志表
+	CREATE TABLE IF NOT EXISTS exp_logs (
+		id INTEGER PRIMARY KEY AUTOINCREMENT,
+		user_id INTEGER NOT NULL,
+		amount INTEGER NOT NULL,
+		reason TEXT NOT NULL DEFAULT '',
+		source_type TEXT NOT NULL DEFAULT '',
+		source_id TEXT DEFAULT '',
+		created_at TEXT DEFAULT (datetime('now', 'localtime')),
+		FOREIGN KEY (user_id) REFERENCES users(id),
+		UNIQUE(user_id, source_type, source_id)
+	);
+
+	-- 用户成就表
+	CREATE TABLE IF NOT EXISTS user_achievements (
+		id INTEGER PRIMARY KEY AUTOINCREMENT,
+		user_id INTEGER NOT NULL,
+		achievement_id TEXT NOT NULL,
+		unlocked_at TEXT DEFAULT (datetime('now', 'localtime')),
+		FOREIGN KEY (user_id) REFERENCES users(id),
+		UNIQUE(user_id, achievement_id)
+	);
+
 	CREATE INDEX IF NOT EXISTS idx_records_user_date ON clock_records(user_id, date);
 	CREATE INDEX IF NOT EXISTS idx_records_date ON clock_records(date);
+	CREATE INDEX IF NOT EXISTS idx_exp_logs_user ON exp_logs(user_id);
+	CREATE INDEX IF NOT EXISTS idx_exp_logs_source ON exp_logs(source_type, source_id);
+	CREATE INDEX IF NOT EXISTS idx_achievements_user ON user_achievements(user_id);
 	`
 
 	_, err := instance.Exec(schema)

@@ -70,6 +70,11 @@ func main() {
 	routes.RegisterRankingRoutes(mux)
 	routes.RegisterPlanRoutes(mux)
 	routes.RegisterPlanRankingRoutes(mux)
+	routes.RegisterUserCenterRoutes(mux)
+	routes.RegisterGongzeiRoutes(mux)
+
+	// 初始化工贼榜缓存（内存缓存 + 定时刷新）
+	routes.InitGongzeiCache()
 
 	// 健康检查
 	mux.HandleFunc("/api/health", func(w http.ResponseWriter, r *http.Request) {

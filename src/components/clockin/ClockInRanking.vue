@@ -30,6 +30,10 @@
           <span class="rank-name">{{ item.nickname }}</span>
           <span class="rank-meta">
             {{ item.profession || '' }}{{ item.profession && item.city ? ' · ' : '' }}{{ item.city || '' }}
+            <!-- 在风格榜中显示风格标签 -->
+            <span v-if="activeTab === 'titles' && item.title" class="rank-title">
+                {{ item.title }}
+            </span>
           </span>
         </div>
         <div class="rank-value font-mono">{{ item.label }}</div>
@@ -69,7 +73,8 @@ export default {
       { id: 'early', icon: '🌅', label: '早起榜' },
       { id: 'late', icon: '🌙', label: '夜猫榜' },
       { id: 'ontime', icon: '🎯', label: '准时榜' },
-      { id: 'streak', icon: '🔥', label: '连续打卡' }
+      { id: 'streak', icon: '🔥', label: '连续打卡' },
+      { id: 'titles', icon: '🏷️', label: '风格榜' }
     ]
 
     const fetchRanking = async () => {
@@ -94,6 +99,9 @@ export default {
             break
           case 'streak':
             data = await rankingAPI.getStreak()
+            break
+          case 'titles':
+            data = await rankingAPI.getTitles(period.value)
             break
         }
         list.value = data.list || []
@@ -249,6 +257,14 @@ export default {
   color: var(--text-muted);
 }
 
+.rank-title {
+  display: block;
+  font-size: var(--text-xs);
+  color: var(--color-primary-light);
+  margin-top: 2px;
+  font-weight: 500;
+}
+
 .rank-value {
   font-size: var(--text-base);
   font-weight: 700;
@@ -283,8 +299,25 @@ export default {
 }
 
 @media (max-width: 768px) {
-  .ranking-tabs { gap: var(--space-1); }
-  .tab-btn { padding: var(--space-1) var(--space-3); font-size: 11px; }
+  /* Tab 改为横向滚动，增大触摸区域 */
+  .ranking-tabs {
+    flex-wrap: nowrap;
+    overflow-x: auto;
+    -webkit-overflow-scrolling: touch;
+    scrollbar-width: none;
+    gap: var(--space-2);
+    padding-bottom: var(--space-1);
+  }
+  .ranking-tabs::-webkit-scrollbar { display: none; }
+  .tab-btn {
+    padding: var(--space-2) var(--space-3);
+    font-size: 12px;
+    min-height: 36px;
+    flex-shrink: 0;
+  }
   .ranking-item { gap: var(--space-3); padding: var(--space-3) var(--space-4); }
+  .ranking-item:hover { transform: none; }
+  .rank-badge { min-width: 32px; font-size: var(--text-sm); }
+  .rank-avatar { width: 36px; height: 36px; font-size: 1.5rem; }
 }
 </style>

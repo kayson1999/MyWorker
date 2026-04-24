@@ -80,7 +80,8 @@
           <!-- 柱体区域 -->
           <div class="bars-area">
             <div class="bar-group" v-for="(item, idx) in chartData" :key="item.label"
-                 @mouseenter="activeBar = idx" @mouseleave="activeBar = -1">
+              @mouseenter="activeBar = idx" @mouseleave="activeBar = -1"
+                 @touchstart.passive="activeBar = idx" @touchend="activeBar = -1">
               <div class="bar-col">
                 <div class="bar-fill" :class="[barClass(item.value), { 'bar-active': activeBar === idx }]"
                      :style="{ height: (item.value / maxY * 100) + '%', transitionDelay: (idx * 30) + 'ms' }">
@@ -596,10 +597,28 @@ export default {
 
 @media (max-width: 768px) {
   .stats-grid { grid-template-columns: repeat(2, 1fr); }
+  .chart-section { padding: var(--space-4); }
   .chart-body { height: 180px; }
   .chart-legend { display: none; }
   .chart-header { margin-bottom: var(--space-3); }
   .bar-fill { max-width: 24px; }
-  .bars-area { padding: 0 4px; }
+  .bars-area { padding: 0 2px; gap: 1px; }
+  /* 移动端图表标签：天数多时隔一个显示，避免重叠 */
+  .bar-group:nth-child(odd) .bar-label {
+    visibility: visible;
+  }
+  .bar-group:nth-child(even) .bar-label {
+    visibility: hidden;
+  }
+  /* 移动端 tooltip 触摸支持 */
+  .bar-tooltip {
+    pointer-events: auto;
+  }
+  /* 统计卡片间距缩小 */
+  .stats-grid { gap: var(--space-3); }
+  .stat-card { padding: var(--space-3); }
+  .stat-card:hover { transform: none; }
+  .stat-icon { font-size: 1.2rem; }
+  .stat-value { font-size: var(--text-lg); }
 }
 </style>

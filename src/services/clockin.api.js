@@ -42,6 +42,17 @@ export const clockinAPI = {
   }
 }
 
+// ==================== 工作风格标签 ====================
+export const titleAPI = {
+  getTitles() {
+    return request('/clockin/titles')
+  },
+
+  getTodayTitle() {
+    return request('/clockin/today-title')
+  }
+}
+
 // ==================== 排行榜 ====================
 export const rankingAPI = {
   getWorkhours(period = 'week') {
@@ -66,5 +77,39 @@ export const rankingAPI = {
 
   getOntime(period = 'week') {
     return request(`/ranking/ontime?period=${period}`)
+  },
+
+  getTitles(period = 'week') {
+    return request(`/ranking/titles?period=${period}`)
+  }
+}
+
+// ==================== 工贼榜 ====================
+export const gongzeiAPI = {
+  getTop() {
+    return request('/gongzei/top')
+  }
+}
+
+// ==================== 个人中心 ====================
+export const userCenterAPI = {
+  // 数据总览（等级、风格标签、核心统计、成就概览）
+  getOverview() {
+    return request('/usercenter/overview')
+  },
+
+  // 成就列表
+  getAchievements() {
+    return request('/usercenter/achievements')
+  },
+
+  // 经验值日志
+  getExpLogs() {
+    return request('/usercenter/exp-logs')
+  },
+
+  // 打卡热力图
+  getHeatmap() {
+    return request('/usercenter/heatmap')
   }
 }

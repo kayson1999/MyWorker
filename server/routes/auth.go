@@ -11,8 +11,8 @@ import (
 
 // RegisterAuthRoutes 注册认证路由
 func RegisterAuthRoutes(mux *http.ServeMux) {
-	mux.HandleFunc("/api/auth/register", methodHandler("POST", handleRegister))
-	mux.HandleFunc("/api/auth/login", methodHandler("POST", handleLogin))
+	mux.Handle("/api/auth/register", methodMiddleware("POST", http.HandlerFunc(handleRegister)))
+	mux.Handle("/api/auth/login", methodMiddleware("POST", http.HandlerFunc(handleLogin)))
 	mux.Handle("/api/auth/logout", methodMiddleware("POST", middleware.AuthMiddleware(http.HandlerFunc(handleLogout))))
 }
 

@@ -1,5 +1,8 @@
 <template>
   <div class="clockin-page">
+    <!-- 工贼榜顶部流动横幅 -->
+    <GongzeiBanner v-if="authStore.isLoggedIn.value" />
+
     <!-- 页面头部 -->
     <section class="page-hero">
       <div class="container">
@@ -78,14 +81,24 @@
         <PlanRanking v-show="rankingType === 'plan'" />
       </div>
 
-      <!-- ========== 我的（需要登录） ========== -->
+      <!-- ========== 个人中心（需要登录） ========== -->
       <div v-show="activeTab === 'profile'">
-        <ClockInProfile v-if="authStore.isLoggedIn.value"
-          :user="authStore.currentUser.value"
-          @profile-updated="handleProfileUpdated" />
+        <template v-if="authStore.isLoggedIn.value">
+          <!-- 个人资料编辑弹层 -->
+          <ClockInProfile v-if="showProfileEdit"
+            :user="authStore.currentUser.value"
+            @profile-updated="(u) => { handleProfileUpdated(u); showProfileEdit = false; }" />
+          <div v-if="showProfileEdit" class="back-to-center">
+            <button class="back-btn" @click="showProfileEdit = false">← 返回个人中心</button>
+          </div>
+          <!-- 个人中心主页 -->
+          <UserCenter v-if="!showProfileEdit"
+            :user="authStore.currentUser.value"
+            @edit-profile="showProfileEdit = true" />
+        </template>
         <div v-else class="need-login-card glass-card">
           <span class="need-login-icon">👤</span>
-          <p class="need-login-text">登录后管理你的个人资料</p>
+          <p class="need-login-text">登录后查看你的个人中心</p>
           <button class="need-login-btn" @click="authStore.openLogin()">🔑 立即登录</button>
         </div>
       </div>
@@ -100,23 +113,27 @@ import ClockInProfile from '@/components/clockin/ClockInProfile.vue'
 import ClockInPanel from '@/components/clockin/ClockInPanel.vue'
 import ClockInStats from '@/components/clockin/ClockInStats.vue'
 import ClockInRanking from '@/components/clockin/ClockInRanking.vue'
+import UserCenter from '@/components/clockin/UserCenter.vue'
 import PlanPanel from '@/components/plan/PlanPanel.vue'
 import PlanRanking from '@/components/plan/PlanRanking.vue'
+import GongzeiBanner from '@/components/clockin/GongzeiBanner.vue'
 
 export default {
   name: 'Home',
-  components: { ClockInProfile, ClockInPanel, ClockInStats, ClockInRanking, PlanPanel, PlanRanking },
+  components: { ClockInProfile, ClockInPanel, ClockInStats, ClockInRanking, UserCenter, PlanPanel, PlanRanking, GongzeiBanner },
   setup() {
     const activeTab = ref('clockin')
     const clockinSubTab = ref('punch')
     const panelRef = ref(null)
     const statsRef = ref(null)
 
+    const showProfileEdit = ref(false)
+
     const mainTabs = [
       { id: 'clockin', icon: '⏰', label: '工时打卡' },
       { id: 'plan', icon: '🎯', label: '计划签到' },
       { id: 'ranking', icon: '🏆', label: '排行榜' },
-      { id: 'profile', icon: '👤', label: '我的' }
+      { id: 'profile', icon: '👤', label: '个人中心' }
     ]
 
     const handleProfileUpdated = (user) => {
@@ -133,7 +150,7 @@ export default {
 
     return {
       authStore, activeTab, clockinSubTab, mainTabs, panelRef, statsRef, rankingType,
-      handleProfileUpdated, handleRecordUpdated, handleLogout
+      showProfileEdit, handleProfileUpdated, handleRecordUpdated, handleLogout
     }
   }
 }
@@ -358,6 +375,27 @@ export default {
   padding-bottom: var(--space-16);
 }
 
+/* 返回个人中心按钮 */
+.back-to-center {
+  margin-bottom: var(--space-4);
+}
+
+.back-btn {
+  background: none;
+  border: 1px dashed var(--border-color);
+  border-radius: var(--radius-md);
+  padding: var(--space-2) var(--space-4);
+  color: var(--text-muted);
+  font-size: var(--text-sm);
+  cursor: pointer;
+  transition: all 0.3s ease;
+}
+
+.back-btn:hover {
+  border-color: var(--color-primary);
+  color: var(--color-primary-light);
+}
+
 /* 响应式 */
 @media (max-width: 768px) {
   .hero-title { font-size: var(--text-3xl); }
@@ -366,5 +404,29 @@ export default {
   .container { padding: 0 var(--space-4); }
   .hero-top { padding: 0 var(--space-4); }
   .user-nickname { display: none; }
+  .page-hero { padding: var(--space-10) var(--space-4) var(--space-6); }
+  .content-area { padding-bottom: calc(var(--space-16) + env(safe-area-inset-bottom, 0px)); }
+
+  /* 主 Tab 栏移动端优化：固定底部导航样式 */
+  .main-tabs {
+    position: fixed;
+    bottom: 0;
+    left: 0;
+    right: 0;
+    z-index: 999;
+    border-radius: var(--radius-xl) var(--radius-xl) 0 0;
+    margin-bottom: 0;
+    padding: var(--space-2);
+    padding-bottom: calc(var(--space-2) + env(safe-area-inset-bottom, 0px));
+    box-shadow: 0 -4px 20px rgba(0, 0, 0, 0.4);
+  }
+  .main-tab {
+    padding: var(--space-2) var(--space-1);
+    font-size: 11px;
+    min-height: 44px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+  }
 }
 </style>

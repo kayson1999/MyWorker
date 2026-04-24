@@ -1080,15 +1080,20 @@ export default {
   justify-content: center;
   z-index: 1000;
   backdrop-filter: blur(4px);
+  overflow-y: auto;
+  padding: var(--space-6) 0;
 }
 
 .modal-content {
   width: 90%;
   max-width: 420px;
+  max-height: 90vh;
   padding: var(--space-8);
   display: flex;
   flex-direction: column;
   gap: var(--space-5);
+  overflow-y: auto;
+  margin: auto;
 }
 
 .modal-title {
@@ -1239,6 +1244,12 @@ export default {
   display: flex;
   gap: var(--space-3);
   justify-content: flex-end;
+  position: sticky;
+  bottom: 0;
+  background: var(--glass-bg);
+  padding-top: var(--space-4);
+  margin-top: auto;
+  z-index: 1;
 }
 
 .modal-btn {
@@ -1326,7 +1337,41 @@ export default {
   .plan-card-actions { opacity: 1; }
   .achievement-grid { grid-template-columns: 1fr; }
   .calendar-day { max-height: 36px; }
-  .modal-content { padding: var(--space-5); }
   .freq-picker { flex-direction: column; }
+
+  /* 弹窗移动端适配：底部抽屉样式 */
+  .modal-overlay {
+    align-items: flex-end;
+    padding: 0;
+  }
+  .modal-content {
+    width: 100%;
+    max-width: 100%;
+    max-height: 90vh;
+    border-radius: var(--radius-xl) var(--radius-xl) 0 0;
+    padding: var(--space-5);
+    padding-bottom: calc(var(--space-5) + env(safe-area-inset-bottom, 0px));
+  }
+  .icon-picker {
+    gap: var(--space-1);
+  }
+  .icon-option {
+    width: 32px;
+    height: 32px;
+    font-size: 1rem;
+  }
+  .modal-actions {
+    padding-bottom: env(safe-area-inset-bottom, 0px);
+  }
+
+  /* 日历图例移动端换行 */
+  .calendar-legend {
+    flex-wrap: wrap;
+    gap: var(--space-2);
+  }
+  .legend-tip {
+    margin-left: 0;
+    width: 100%;
+  }
 }
 </style>

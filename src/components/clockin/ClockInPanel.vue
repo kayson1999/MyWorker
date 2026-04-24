@@ -72,8 +72,11 @@
       </div>
       <div class="summary-item">
         <span class="summary-icon">🏷️</span>
-        <span class="summary-label">称号</span>
-        <span class="summary-value title-text">{{ funTitle }}</span>
+        <span class="summary-label">今日称号</span>
+        <span class="summary-value title-text">
+          {{ todayTitle?.title || '—' }}
+          <span v-if="todayTitle?.sub_title" class="title-sub">{{ todayTitle.sub_title }}</span>
+        </span>
       </div>
     </div>
 
@@ -111,13 +114,14 @@
 
 <script>
 import { ref, reactive, computed, onMounted, onUnmounted } from 'vue'
-import { clockinAPI } from '@/services/clockin.api.js'
+import { clockinAPI, titleAPI } from '@/services/clockin.api.js'
 
 export default {
   name: 'ClockInPanel',
   emits: ['record-updated'],
   setup(props, { emit }) {
     const todayRecord = ref(null)
+    const todayTitle = ref(null)
     const loading = ref(false)
     const showManual = ref(false)
     const manualError = ref('')
@@ -152,17 +156,6 @@ export default {
       return (Math.max(0, diff) / 60).toFixed(1) + 'h (进行中...)'
     })
 
-    // 趣味称号
-    const funTitle = computed(() => {
-      if (!todayRecord.value?.clock_in) return '—'
-      const clockIn = todayRecord.value.clock_in
-      if (clockIn < '08:00') return '卷王之王 👑'
-      if (clockIn < '08:30') return '早起鸟 🐦'
-      if (clockIn < '09:00') return '准时达人 ⏰'
-      if (clockIn < '09:30') return '踩点大师 🎯'
-      return '自由灵魂 🌈'
-    })
-
     const showToast = (message, type = 'success') => {
       toast.value = { message, type }
       setTimeout(() => { toast.value = null }, 3000)
@@ -173,8 +166,20 @@ export default {
       try {
         const data = await clockinAPI.getToday()
         todayRecord.value = data.record
+        fetchTodayTitle() // 同时获取今日称号
       } catch (err) {
         console.error('获取今日记录失败:', err)
+      }
+    }
+
+    // 获取今日称号
+    const fetchTodayTitle = async () => {
+      try {
+        const data = await titleAPI.getTodayTitle()
+        todayTitle.value = data
+      } catch (err) {
+        console.error('获取今日称号失败:', err)
+        todayTitle.value = null
       }
     }
 
@@ -184,8 +189,12 @@ export default {
       try {
         const data = await clockinAPI.clockIn()
         todayRecord.value = data.record
-        showToast('☀️ 上班打卡成功！点击「调整」可修改打卡时间', 'success')
+        let msg = '☀️ 上班打卡成功！'
+        if (data.exp_gained > 0) msg += ` +${data.exp_gained} EXP`
+        if (data.leveled_up) msg += ` 🎉 升级到 Lv.${data.new_level}！`
+        showToast(msg, 'success')
         emit('record-updated')
+        fetchTodayTitle()
       } catch (err) {
         showToast(err.message || '打卡失败', 'error')
       } finally {
@@ -199,8 +208,12 @@ export default {
       try {
         const data = await clockinAPI.clockOut()
         todayRecord.value = data.record
-        showToast('🌙 下班打卡成功！辛苦了~ 点击「调整」可修改时间', 'success')
+        let msg = '🌙 下班打卡成功！辛苦了~'
+        if (data.exp_gained > 0) msg += ` +${data.exp_gained} EXP`
+        if (data.leveled_up) msg += ` 🎉 升级到 Lv.${data.new_level}！`
+        showToast(msg, 'success')
         emit('record-updated')
+        fetchTodayTitle()
       } catch (err) {
         showToast(err.message || '打卡失败', 'error')
       } finally {
@@ -277,8 +290,8 @@ export default {
     })
 
     return {
-      todayRecord, loading, showManual, manualError, toast,
-      currentTime, currentDate, liveHours, funTitle,
+      todayRecord, todayTitle, loading, showManual, manualError, toast,
+      currentTime, currentDate, liveHours,
       manualForm, handleClockIn, handleClockOut, handleManual,
       adjusting, adjustTime, startAdjust, cancelAdjust, confirmAdjust
     }
@@ -523,6 +536,13 @@ export default {
   font-family: var(--font-sans);
 }
 
+.title-sub {
+  font-size: var(--text-xs);
+  color: var(--text-muted);
+  font-weight: 400;
+  margin-left: var(--space-1);
+}
+
 /* 手动补卡 */
 .manual-section {
   display: flex;
@@ -648,5 +668,13 @@ export default {
   .clock-actions { grid-template-columns: 1fr; }
   .clock-time { font-size: var(--text-4xl); }
   .today-summary { flex-direction: column; }
+  /* 补卡表单移动端优化 */
+  .form-row {
+    grid-template-columns: 1fr;
+    gap: var(--space-3);
+  }
+  .manual-form { padding: var(--space-4); }
+  .action-card { padding: var(--space-4); }
+  .clock-display { padding: var(--space-5); }
 }
 </style>

@@ -14,6 +14,29 @@
 
       <!-- 展示模式 -->
       <div class="profile-details" v-if="!editing">
+        <!-- 称号展示 -->
+        <div class="title-section">
+          <h4 class="title-heading">🏷️ 工作风格标签</h4>
+          <div class="title-grid">
+            <div class="title-item">
+              <span class="title-icon">📅</span>
+              <span class="title-label">本周风格</span>
+              <span class="title-value">{{ titles.week_title || '暂无称号' }}</span>
+            </div>
+            <div class="title-item">
+              <span class="title-icon">📊</span>
+              <span class="title-label">本月风格</span>
+              <span class="title-value">{{ titles.month_title || '暂无称号' }}</span>
+            </div>
+            <div class="title-item">
+              <span class="title-icon">🎯</span>
+              <span class="title-label">本年风格</span>
+              <span class="title-value">{{ titles.year_title || '暂无称号' }}</span>
+            </div>
+          </div>
+        </div>
+
+        <!-- 原有信息 -->
         <div class="detail-item">
           <span class="detail-icon">💼</span>
           <span class="detail-label">职业</span>
@@ -87,8 +110,8 @@
 </template>
 
 <script>
-import { ref, reactive, watch } from 'vue'
-import { userAPI } from '@/services/clockin.api.js'
+import { ref, reactive, watch, onMounted } from 'vue'
+import { userAPI, titleAPI } from '@/services/clockin.api.js'
 
 export default {
   name: 'ClockInProfile',
@@ -101,6 +124,7 @@ export default {
     const saving = ref(false)
     const error = ref('')
     const avatars = ['😎', '🚀', '🔥', '💻', '🎮', '⚡', '🌟', '🦊', '🐱', '🐶', '🦁', '🐼', '🐨', '🐯', '🦄', '🐸']
+    const titles = ref({})
 
     const form = reactive({
       nickname: '',
@@ -125,6 +149,22 @@ export default {
       }
     }, { immediate: true })
 
+    // 获取用户称号
+    const fetchTitles = async () => {
+      try {
+        const data = await titleAPI.getTitles()
+        titles.value = data
+      } catch (err) {
+        console.error('获取称号失败:', err)
+        titles.value = {}
+      }
+    }
+
+    // 组件挂载时获取称号
+    onMounted(() => {
+      fetchTitles()
+    })
+
     const saveProfile = async () => {
       error.value = ''
       saving.value = true
@@ -139,7 +179,7 @@ export default {
       }
     }
 
-    return { editing, saving, error, avatars, form, saveProfile }
+    return { editing, saving, error, avatars, titles, form, saveProfile }
   }
 }
 </script>
@@ -206,6 +246,59 @@ export default {
   display: grid;
   grid-template-columns: repeat(auto-fill, minmax(200px, 1fr));
   gap: var(--space-4);
+}
+
+/* 称号样式 */
+.title-section {
+  grid-column: 1 / -1;
+  margin-bottom: var(--space-4);
+  padding: var(--space-4);
+  background: var(--bg-tertiary);
+  border-radius: var(--radius-lg);
+  border: 1px solid var(--border-color);
+}
+
+.title-heading {
+  font-size: var(--text-sm);
+  font-weight: 600;
+  color: var(--text-primary);
+  margin-bottom: var(--space-3);
+}
+
+.title-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+  gap: var(--space-3);
+}
+
+.title-item {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  padding: var(--space-2) var(--space-3);
+  background: var(--bg-secondary);
+  border-radius: var(--radius-md);
+}
+
+.title-icon {
+  font-size: 1.1rem;
+}
+
+.title-label {
+  font-size: var(--text-xs);
+  color: var(--text-muted);
+  min-width: 60px;
+}
+
+.title-value {
+  font-size: var(--text-sm);
+  font-weight: 600;
+  color: var(--color-primary-light);
+  flex: 1;
+  text-align: right;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 
 .detail-item {
@@ -335,5 +428,11 @@ export default {
   .profile-header { flex-wrap: wrap; }
   .form-row { grid-template-columns: 1fr; }
   .profile-details { grid-template-columns: 1fr; }
+  .title-grid { grid-template-columns: 1fr; }
+  .title-value {
+    text-align: left;
+    white-space: normal;
+    word-break: break-word;
+  }
 }
 </style>

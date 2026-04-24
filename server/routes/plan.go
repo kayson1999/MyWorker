@@ -1,6 +1,7 @@
 package routes
 
 import (
+	"fmt"
 	"net/http"
 	"strconv"
 	"time"
@@ -8,6 +9,7 @@ import (
 	"myworker/db"
 	"myworker/logger"
 	"myworker/middleware"
+	"myworker/utils"
 )
 
 // Plan 计划
@@ -169,6 +171,18 @@ func handlePlanCreate(w http.ResponseWriter, r *http.Request) {
 	}
 
 	planID, _ := result.LastInsertId()
+
+	// 发放创建计划经验值
+	expSourceID := fmt.Sprintf("%s_plan_create_%d", userID, planID)
+	utils.AddExp(d, userID, "plan_create", expSourceID)
+
+	// 检查计划相关成就
+	var totalPlans int
+	d.QueryRow("SELECT COUNT(*) FROM plans WHERE user_id = ? AND status != -1", userID).Scan(&totalPlans)
+	var totalCheckins int
+	d.QueryRow("SELECT COUNT(*) FROM plan_checkins WHERE user_id = ?", userID).Scan(&totalCheckins)
+	utils.CheckPlanAchievements(d, userID, totalPlans, totalCheckins)
+
 	writeJSON(w, http.StatusOK, map[string]interface{}{
 		"message": "计划创建成功",
 		"plan_id": planID,
@@ -337,6 +351,10 @@ func handlePlanCheckin(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	// 发放计划打卡经验值
+	expSourceID := fmt.Sprintf("%s_plan_checkin_%d_%s", userID, body.PlanID, body.Date)
+	utils.AddExp(d, userID, "plan_checkin", expSourceID)
+
 	// 检查是否达成目标
 	var targetDays int
 	d.QueryRow("SELECT target_days FROM plans WHERE id = ?", body.PlanID).Scan(&targetDays)
@@ -345,8 +363,18 @@ func handlePlanCheckin(w http.ResponseWriter, r *http.Request) {
 		d.QueryRow("SELECT COUNT(*) FROM plan_checkins WHERE plan_id = ?", body.PlanID).Scan(&totalCheckins)
 		if totalCheckins >= targetDays {
 			d.Exec("UPDATE plans SET status = 2 WHERE id = ?", body.PlanID)
+			// 发放完成计划经验值
+			completeSourceID := fmt.Sprintf("%s_plan_complete_%d", userID, body.PlanID)
+			utils.AddExp(d, userID, "plan_complete", completeSourceID)
 		}
 	}
+
+	// 检查计划相关成就
+	var totalPlans int
+	d.QueryRow("SELECT COUNT(*) FROM plans WHERE user_id = ? AND status != -1", userID).Scan(&totalPlans)
+	var allCheckins int
+	d.QueryRow("SELECT COUNT(*) FROM plan_checkins WHERE user_id = ?", userID).Scan(&allCheckins)
+	utils.CheckPlanAchievements(d, userID, totalPlans, allCheckins)
 
 	writeJSON(w, http.StatusOK, map[string]interface{}{
 		"message": "打卡成功 ✅",
@@ -481,7 +509,6 @@ func handlePlanAchievements(w http.ResponseWriter, r *http.Request) {
 	rows.Close()
 
 	var achievements []PlanAchievement
-	today := time.Now()
 
 	for _, pb := range planBases {
 		a := PlanAchievement{
@@ -497,7 +524,7 @@ func handlePlanAchievements(w http.ResponseWriter, r *http.Request) {
 		d.QueryRow("SELECT COUNT(*) FROM plan_checkins WHERE plan_id = ?", a.PlanID).Scan(&a.TotalDays)
 
 		// 计算当前连续天数
-		a.CurrentStreak = calcPlanStreak(a.PlanID, today)
+		a.CurrentStreak = calcPlanStreak(a.PlanID)
 
 		// 计算最长连续天数
 		a.MaxStreak = calcPlanMaxStreak(a.PlanID)
@@ -522,8 +549,8 @@ func handlePlanAchievements(w http.ResponseWriter, r *http.Request) {
 	})
 }
 
-// calcPlanStreak 计算计划当前连续打卡天数（从昨天开始往前数，因为今天还没结束）
-func calcPlanStreak(planID int, today time.Time) int {
+// calcPlanStreak 计算计划当前连续打卡天数
+func calcPlanStreak(planID int) int {
 	d := db.GetDB()
 	dateRows, err := d.Query("SELECT date FROM plan_checkins WHERE plan_id = ? ORDER BY date DESC", planID)
 	if err != nil {
@@ -540,26 +567,7 @@ func calcPlanStreak(planID int, today time.Time) int {
 		dateSet[date] = true
 	}
 
-	streak := 0
-	// 如果今天已打卡，则从今天开始计入连续天数；
-	// 否则（今天未打卡）从昨天开始向前计算，避免"今天还没到打卡时间"导致连续天数清零。
-	var checkDate time.Time
-	todayStr := today.Format("2006-01-02")
-	if dateSet[todayStr] {
-		checkDate = today
-	} else {
-		checkDate = today.AddDate(0, 0, -1)
-	}
-	for {
-		ds := checkDate.Format("2006-01-02")
-		if dateSet[ds] {
-			streak++
-			checkDate = checkDate.AddDate(0, 0, -1)
-		} else {
-			break
-		}
-	}
-	return streak
+	return calcStreakFromDates(dateSet)
 }
 
 // calcPlanMaxStreak 计算计划最长连续打卡天数

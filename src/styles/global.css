@@ -240,4 +240,18 @@ a {
     --text-5xl: 2.25rem;
     --text-6xl: 2.75rem;
   }
+
+  /* 移动端禁止 hover 效果导致的粘滞 */
+  @media (hover: none) {
+    * {
+      -webkit-tap-highlight-color: transparent;
+    }
+  }
+}
+
+/* 安全区适配（iPhone 刘海/底部横条） */
+@supports (padding-bottom: env(safe-area-inset-bottom)) {
+  body {
+    padding-bottom: env(safe-area-inset-bottom);
+  }
 }

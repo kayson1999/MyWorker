@@ -297,8 +297,26 @@ export default {
 }
 
 @media (max-width: 768px) {
-  .ranking-tabs { gap: var(--space-1); }
-  .tab-btn { padding: var(--space-1) var(--space-3); font-size: 11px; }
+  /* Tab 改为横向滚动，增大触摸区域 */
+  .ranking-tabs {
+    flex-wrap: nowrap;
+    overflow-x: auto;
+    -webkit-overflow-scrolling: touch;
+    scrollbar-width: none;
+    gap: var(--space-2);
+    padding-bottom: var(--space-1);
+  }
+  .ranking-tabs::-webkit-scrollbar { display: none; }
+  .tab-btn {
+    padding: var(--space-2) var(--space-3);
+    font-size: 12px;
+    min-height: 36px;
+    flex-shrink: 0;
+  }
   .ranking-item { gap: var(--space-3); padding: var(--space-3) var(--space-4); }
+  .ranking-item:hover { transform: none; }
+  .rank-badge { min-width: 32px; font-size: var(--text-sm); }
+  .rank-avatar { width: 36px; height: 36px; font-size: 1.5rem; }
+  .rank-plan-tag { max-width: 110px; font-size: 10px; }
 }
 </style>

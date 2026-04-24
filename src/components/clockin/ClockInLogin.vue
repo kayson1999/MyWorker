@@ -134,6 +134,8 @@ export default {
   position: relative;
   width: 100%;
   max-width: 400px;
+  max-height: 90vh;
+  overflow-y: auto;
   padding: var(--space-10) var(--space-8);
   border: 1px solid rgba(168, 85, 247, 0.15);
   box-shadow:
@@ -405,5 +407,32 @@ export default {
 .switch-btn:hover {
   color: var(--text-primary);
   background: rgba(168, 85, 247, 0.08);
+}
+
+/* 移动端适配 */
+@media (max-width: 768px) {
+  .login-panel {
+    padding: var(--space-4);
+    align-items: flex-start;
+  }
+  .login-card {
+    max-height: 85vh;
+    padding: var(--space-6) var(--space-5);
+  }
+  .login-logo {
+    font-size: 2rem;
+    width: 52px;
+    height: 52px;
+  }
+  .decor-ring {
+    width: 60px;
+    height: 60px;
+  }
+  .login-header {
+    margin-bottom: var(--space-5);
+  }
+  .login-title {
+    font-size: var(--text-xl);
+  }
 }
 </style>

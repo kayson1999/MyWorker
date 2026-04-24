@@ -5,7 +5,6 @@ import (
 	"fmt"
 	"math"
 	"net/http"
-	"time"
 
 	"myworker/db"
 	"myworker/logger"
@@ -113,7 +112,6 @@ func handlePlanStreakRanking(w http.ResponseWriter, r *http.Request) {
 		users = append(users, u)
 	}
 
-	today := time.Now()
 	var list []RankItem
 
 	for _, u := range users {
@@ -135,7 +133,7 @@ func handlePlanStreakRanking(w http.ResponseWriter, r *http.Request) {
 
 		maxStreak := 0
 		for _, planID := range planIDs {
-			streak := calcPlanStreak(planID, today)
+			streak := calcPlanStreak(planID)
 			if streak > maxStreak {
 				maxStreak = streak
 			}
