@@ -8,7 +8,6 @@ server/myworker
 *.exe
 
 # 数据库文件
-server/data/
 *.db
 *.db-shm
 *.db-wal
