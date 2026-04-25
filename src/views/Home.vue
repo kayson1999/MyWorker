@@ -227,6 +227,7 @@ export default {
 
 .logout-btn {
   padding: var(--space-1) var(--space-4);
+  min-height: 36px;
   background: rgba(244, 114, 182, 0.1);
   border: 1px solid rgba(244, 114, 182, 0.2);
   border-radius: var(--radius-full);

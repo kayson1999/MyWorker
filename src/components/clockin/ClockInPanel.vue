@@ -390,6 +390,7 @@ export default {
   border: 1px dashed rgba(168, 85, 247, 0.4);
   border-radius: var(--radius-full);
   padding: 2px 10px;
+  min-height: 36px;
   font-size: var(--text-xs);
   color: var(--color-primary-light);
   cursor: pointer;
@@ -442,8 +443,10 @@ export default {
 
 .adjust-confirm,
 .adjust-cancel {
-  width: 32px;
-  height: 32px;
+  width: 36px;
+  height: 36px;
+  min-width: 44px;
+  min-height: 44px;
   border-radius: 50%;
   border: none;
   font-size: var(--text-base);
@@ -555,6 +558,7 @@ export default {
   border: 1px dashed var(--border-color);
   border-radius: var(--radius-lg);
   padding: var(--space-3);
+  min-height: 44px;
   color: var(--text-muted);
   font-size: var(--text-sm);
   cursor: pointer;
@@ -667,7 +671,8 @@ export default {
 @media (max-width: 768px) {
   .clock-actions { grid-template-columns: 1fr; }
   .clock-time { font-size: var(--text-4xl); }
-  .today-summary { flex-direction: column; }
+  .today-summary { flex-direction: column; gap: var(--space-3); }
+  .today-summary .summary-item { gap: var(--space-2); }
   /* 补卡表单移动端优化 */
   .form-row {
     grid-template-columns: 1fr;
@@ -676,5 +681,9 @@ export default {
   .manual-form { padding: var(--space-4); }
   .action-card { padding: var(--space-4); }
   .clock-display { padding: var(--space-5); }
+  .action-icon { font-size: 2rem; }
+  .action-time { font-size: var(--text-xl); }
+  .adjust-btn { min-height: 44px; padding: var(--space-2) var(--space-3); }
+  .toast { bottom: calc(var(--space-16) + env(safe-area-inset-bottom, 0px)); max-width: 90vw; text-align: center; }
 }
 </style>

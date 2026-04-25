@@ -1,20 +1,42 @@
 <template>
   <transition name="banner-slide">
-    <div v-if="visible && list.length > 0" class="gongzei-banner">
-      <div class="banner-content">
-        <div class="banner-track" :style="trackStyle">
-          <!-- 重复两份实现无缝滚动 -->
-          <span class="banner-text" v-for="(_, idx) in 2" :key="idx">
-            <span class="banner-icon">🏴</span>
-            <span class="banner-label">上周工贼榜</span>
-            <span v-for="(item, i) in list" :key="i" class="banner-item">
-              <span class="item-rank">{{ ['🥇','🥈','🥉'][i] }}</span>
-              <span class="item-avatar">{{ item.avatar }}</span>
-              <span class="item-name">{{ item.nickname }}</span>
-              <span class="item-hours">{{ item.label }}</span>
-            </span>
-            <span class="banner-gap"></span>
-          </span>
+    <div v-if="visible && hasData" class="gongzei-banner">
+      <div class="banner-rows">
+        <!-- 第一行：工贼榜（工时最高） -->
+        <div v-if="gongzeiList.length > 0" class="banner-row">
+          <div class="banner-content">
+            <div class="banner-track" :style="trackStyle(gongzeiList.length)">
+              <span class="banner-text" v-for="(_, idx) in 2" :key="'gz-copy-' + idx">
+                <span class="banner-icon">🏴</span>
+                <span class="banner-label label-gongzei">上周工贼榜</span>
+                <span v-for="(item, i) in gongzeiList" :key="'gz-' + i" class="banner-item item-gongzei">
+                  <span class="item-rank">{{ ['🥇','🥈','🥉'][i] }}</span>
+                  <span class="item-avatar">{{ item.avatar }}</span>
+                  <span class="item-name">{{ item.nickname }}</span>
+                  <span class="item-hours hours-gongzei">{{ item.label }}</span>
+                </span>
+                <span class="banner-gap"></span>
+              </span>
+            </div>
+          </div>
+        </div>
+        <!-- 第二行：光荣榜（工时最短） -->
+        <div v-if="guangrongList.length > 0" class="banner-row">
+          <div class="banner-content">
+            <div class="banner-track track-reverse" :style="trackStyle(guangrongList.length)">
+              <span class="banner-text" v-for="(_, idx) in 2" :key="'gr-copy-' + idx">
+                <span class="banner-icon">🏅</span>
+                <span class="banner-label label-guangrong">上周光荣榜</span>
+                <span v-for="(item, i) in guangrongList" :key="'gr-' + i" class="banner-item item-guangrong">
+                  <span class="item-rank">{{ ['🥇','🥈','🥉'][i] }}</span>
+                  <span class="item-avatar">{{ item.avatar }}</span>
+                  <span class="item-name">{{ item.nickname }}</span>
+                  <span class="item-hours hours-guangrong">{{ item.label }}</span>
+                </span>
+                <span class="banner-gap"></span>
+              </span>
+            </div>
+          </div>
         </div>
       </div>
       <button class="banner-close" @click="closeBanner" title="关闭">✕</button>
@@ -30,27 +52,27 @@ export default {
   name: 'GongzeiBanner',
   setup() {
     const visible = ref(true)
-    const list = ref([])
+    const gongzeiList = ref([])
+    const guangrongList = ref([])
     const week = ref('')
 
-    // 动画持续时间（秒），根据内容长度动态调整
-    const animDuration = computed(() => {
-      const base = 12
-      return base + list.value.length * 3
-    })
+    // 是否有数据可展示
+    const hasData = computed(() => gongzeiList.value.length > 0 || guangrongList.value.length > 0)
 
-    const trackStyle = computed(() => ({
-      animationDuration: `${animDuration.value}s`
-    }))
+    // 根据每行的项数动态计算动画时长
+    const trackStyle = (count) => ({
+      animationDuration: `${12 + count * 3}s`
+    })
 
     const fetchData = async () => {
       try {
-        const data = await gongzeiAPI.getTop()
-        list.value = data.list || []
-        week.value = data.week || ''
+        const data = await gongzeiAPI.getAll()
+        gongzeiList.value = data.gongzei?.list || []
+        guangrongList.value = data.guangrong?.list || []
+        week.value = data.gongzei?.week || data.guangrong?.week || ''
       } catch (e) {
-        // 未登录或请求失败时静默处理
-        list.value = []
+        gongzeiList.value = []
+        guangrongList.value = []
       }
     }
 
@@ -62,7 +84,7 @@ export default {
       fetchData()
     })
 
-    return { visible, list, week, trackStyle, closeBanner }
+    return { visible, gongzeiList, guangrongList, week, hasData, trackStyle, closeBanner }
   }
 }
 </script>
@@ -71,13 +93,25 @@ export default {
 .gongzei-banner {
   position: relative;
   width: 100%;
-  background: linear-gradient(90deg, rgba(168, 85, 247, 0.12), rgba(236, 72, 153, 0.12), rgba(168, 85, 247, 0.12));
+  background: linear-gradient(180deg, rgba(168, 85, 247, 0.10), rgba(34, 197, 94, 0.08));
   border-bottom: 1px solid rgba(168, 85, 247, 0.2);
   overflow: hidden;
-  height: 36px;
   display: flex;
   align-items: center;
   z-index: 100;
+}
+
+.banner-rows {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+}
+
+.banner-row {
+  height: 30px;
+  display: flex;
+  align-items: center;
 }
 
 .banner-content {
@@ -98,13 +132,19 @@ export default {
   will-change: transform;
 }
 
+/* 光荣榜反向滚动，增加视觉层次感 */
+.banner-track.track-reverse {
+  animation-name: scroll-right;
+}
+
 @keyframes scroll-left {
-  0% {
-    transform: translateX(0);
-  }
-  100% {
-    transform: translateX(-50%);
-  }
+  0% { transform: translateX(0); }
+  100% { transform: translateX(-50%); }
+}
+
+@keyframes scroll-right {
+  0% { transform: translateX(-50%); }
+  100% { transform: translateX(0); }
 }
 
 .banner-text {
@@ -114,38 +154,52 @@ export default {
 }
 
 .banner-icon {
-  font-size: 14px;
+  font-size: 13px;
 }
 
 .banner-label {
-  font-size: 12px;
+  font-size: 11px;
   font-weight: 700;
-  color: var(--neon-pink, #f472b6);
   margin-right: 8px;
   letter-spacing: 0.5px;
+}
+
+.label-gongzei {
+  color: var(--neon-pink, #f472b6);
+}
+
+.label-guangrong {
+  color: #4ade80;
 }
 
 .banner-item {
   display: inline-flex;
   align-items: center;
-  gap: 4px;
-  padding: 2px 10px;
+  gap: 3px;
+  padding: 1px 8px;
   background: rgba(255, 255, 255, 0.05);
   border-radius: 20px;
-  border: 1px solid rgba(168, 85, 247, 0.15);
   margin-right: 6px;
 }
 
+.item-gongzei {
+  border: 1px solid rgba(168, 85, 247, 0.15);
+}
+
+.item-guangrong {
+  border: 1px solid rgba(74, 222, 128, 0.15);
+}
+
 .item-rank {
-  font-size: 14px;
+  font-size: 12px;
 }
 
 .item-avatar {
-  font-size: 14px;
+  font-size: 12px;
 }
 
 .item-name {
-  font-size: 12px;
+  font-size: 11px;
   font-weight: 600;
   color: var(--text-primary, #e2e8f0);
   max-width: 80px;
@@ -154,12 +208,20 @@ export default {
 }
 
 .item-hours {
-  font-size: 11px;
+  font-size: 10px;
   font-weight: 700;
+  padding: 1px 5px;
+  border-radius: 8px;
+}
+
+.hours-gongzei {
   color: var(--neon-cyan, #22d3ee);
   background: rgba(34, 211, 238, 0.1);
-  padding: 1px 6px;
-  border-radius: 8px;
+}
+
+.hours-guangrong {
+  color: #4ade80;
+  background: rgba(74, 222, 128, 0.1);
 }
 
 .banner-gap {
@@ -171,7 +233,6 @@ export default {
   flex-shrink: 0;
   width: 28px;
   height: 28px;
-  /* 扩大触摸目标到44px，满足移动端最小触摸区域要求 */
   min-width: 44px;
   min-height: 44px;
   display: flex;
@@ -202,24 +263,33 @@ export default {
 
 .banner-slide-enter-from,
 .banner-slide-leave-to {
-  height: 0;
+  max-height: 0;
   opacity: 0;
 }
 
 /* 移动端适配 */
 @media (max-width: 768px) {
-  .gongzei-banner {
-    height: 32px;
+  .banner-row {
+    height: 26px;
   }
   .banner-label {
-    font-size: 11px;
+    font-size: 10px;
   }
   .item-name {
     max-width: 60px;
-    font-size: 11px;
+    font-size: 10px;
   }
   .item-hours {
-    font-size: 10px;
+    font-size: 9px;
+  }
+  .item-rank,
+  .item-avatar {
+    font-size: 11px;
+  }
+  .banner-item {
+    padding: 1px 6px;
+    gap: 2px;
+    margin-right: 4px;
   }
   .banner-close {
     width: 24px;

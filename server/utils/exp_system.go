@@ -69,6 +69,7 @@ type Achievement struct {
 	ID          string `json:"id"`
 	Name        string `json:"name"`
 	Description string `json:"description"`
+	Condition   string `json:"condition"` // 达成条件详细描述
 	Icon        string `json:"icon"`
 	Category    string `json:"category"`
 }
@@ -76,31 +77,31 @@ type Achievement struct {
 // 成就列表
 var Achievements = []Achievement{
 	// 打卡里程碑
-	{ID: "first_clock", Name: "初来乍到", Description: "完成第一次打卡", Icon: "🎉", Category: "clockin"},
-	{ID: "clock_7", Name: "一周坚持", Description: "累计打卡7天", Icon: "📅", Category: "clockin"},
-	{ID: "clock_30", Name: "月度达人", Description: "累计打卡30天", Icon: "🗓️", Category: "clockin"},
-	{ID: "clock_100", Name: "百日坚持", Description: "累计打卡100天", Icon: "💯", Category: "clockin"},
-	{ID: "clock_365", Name: "全年无休", Description: "累计打卡365天", Icon: "🏅", Category: "clockin"},
+	{ID: "first_clock", Name: "初来乍到", Description: "完成第一次打卡", Condition: "完成任意一次上班打卡即可解锁", Icon: "🎉", Category: "clockin"},
+	{ID: "clock_7", Name: "一周坚持", Description: "累计打卡7天", Condition: "累计完成7天的打卡记录（无需连续）", Icon: "📅", Category: "clockin"},
+	{ID: "clock_30", Name: "月度达人", Description: "累计打卡30天", Condition: "累计完成30天的打卡记录（无需连续）", Icon: "🗓️", Category: "clockin"},
+	{ID: "clock_100", Name: "百日坚持", Description: "累计打卡100天", Condition: "累计完成100天的打卡记录（无需连续）", Icon: "💯", Category: "clockin"},
+	{ID: "clock_365", Name: "全年无休", Description: "累计打卡365天", Condition: "累计完成365天的打卡记录（无需连续）", Icon: "🏅", Category: "clockin"},
 
 	// 连续打卡
-	{ID: "streak_7", Name: "连续七天", Description: "连续打卡7天", Icon: "🔥", Category: "streak"},
-	{ID: "streak_30", Name: "铁人意志", Description: "连续打卡30天", Icon: "💪", Category: "streak"},
-	{ID: "streak_100", Name: "百日不断", Description: "连续打卡100天", Icon: "⚡", Category: "streak"},
+	{ID: "streak_7", Name: "连续七天", Description: "连续打卡7天", Condition: "连续7天不间断完成打卡", Icon: "🔥", Category: "streak"},
+	{ID: "streak_30", Name: "铁人意志", Description: "连续打卡30天", Condition: "连续30天不间断完成打卡", Icon: "💪", Category: "streak"},
+	{ID: "streak_100", Name: "百日不断", Description: "连续打卡100天", Condition: "连续100天不间断完成打卡", Icon: "⚡", Category: "streak"},
 
 	// 工时成就
-	{ID: "hours_100", Name: "百小时", Description: "累计工时达100小时", Icon: "⏰", Category: "hours"},
-	{ID: "hours_500", Name: "五百小时", Description: "累计工时达500小时", Icon: "⏱️", Category: "hours"},
-	{ID: "hours_1000", Name: "千小时", Description: "累计工时达1000小时", Icon: "🕐", Category: "hours"},
+	{ID: "hours_100", Name: "百小时", Description: "累计工时达100小时", Condition: "所有打卡记录的总工时累计达到100小时", Icon: "⏰", Category: "hours"},
+	{ID: "hours_500", Name: "五百小时", Description: "累计工时达500小时", Condition: "所有打卡记录的总工时累计达到500小时", Icon: "⏱️", Category: "hours"},
+	{ID: "hours_1000", Name: "千小时", Description: "累计工时达1000小时", Condition: "所有打卡记录的总工时累计达到1000小时", Icon: "🕐", Category: "hours"},
 
 	// 计划成就
-	{ID: "first_plan", Name: "计划先行", Description: "创建第一个计划", Icon: "🎯", Category: "plan"},
-	{ID: "plan_10", Name: "计划达人", Description: "累计签到10次", Icon: "📋", Category: "plan"},
-	{ID: "plan_50", Name: "计划大师", Description: "累计签到50次", Icon: "📊", Category: "plan"},
+	{ID: "first_plan", Name: "计划先行", Description: "创建第一个计划", Condition: "在计划模块中创建第一个学习/工作计划", Icon: "🎯", Category: "plan"},
+	{ID: "plan_10", Name: "计划达人", Description: "累计签到10次", Condition: "在计划模块中累计完成10次签到打卡", Icon: "📋", Category: "plan"},
+	{ID: "plan_50", Name: "计划大师", Description: "累计签到50次", Condition: "在计划模块中累计完成50次签到打卡", Icon: "📊", Category: "plan"},
 
 	// 等级成就
-	{ID: "level_5", Name: "初露锋芒", Description: "达到5级", Icon: "⭐", Category: "level"},
-	{ID: "level_10", Name: "登峰造极", Description: "达到10级", Icon: "👑", Category: "level"},
-	{ID: "level_15", Name: "终极打工人", Description: "达到15级", Icon: "🎆", Category: "level"},
+	{ID: "level_5", Name: "初露锋芒", Description: "达到5级", Condition: "通过打卡和完成计划积累经验值，等级达到Lv.5", Icon: "⭐", Category: "level"},
+	{ID: "level_10", Name: "登峰造极", Description: "达到10级", Condition: "通过打卡和完成计划积累经验值，等级达到Lv.10", Icon: "👑", Category: "level"},
+	{ID: "level_15", Name: "终极打工人", Description: "达到15级", Condition: "通过打卡和完成计划积累经验值，等级达到Lv.15（满级）", Icon: "🎆", Category: "level"},
 }
 
 // ==================== 核心函数 ====================
@@ -247,6 +248,7 @@ func GetUserAchievements(d *sql.DB, userID string) []map[string]interface{} {
 			"id":          a.ID,
 			"name":        a.Name,
 			"description": a.Description,
+			"condition":   a.Condition,
 			"icon":        a.Icon,
 			"category":    a.Category,
 			"unlocked":    false,

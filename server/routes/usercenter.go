@@ -4,6 +4,7 @@ import (
 	"database/sql"
 	"math"
 	"net/http"
+	"strconv"
 	"time"
 
 	"myworker/db"
@@ -135,7 +136,7 @@ func CalcClockinStreak(d *sql.DB, userID string) int {
 	return calcStreakFromDates(dateSet)
 }
 
-// handleUserAchievements 获取用户成就列表
+// handleUserAchievements 获取用户成就列表（支持分页）
 func handleUserAchievements(w http.ResponseWriter, r *http.Request) {
 	userID := middleware.GetUserID(r)
 	d := db.GetDB()
@@ -145,8 +146,32 @@ func handleUserAchievements(w http.ResponseWriter, r *http.Request) {
 		achievements = []map[string]interface{}{}
 	}
 
+	// 分页参数
+	page, _ := strconv.Atoi(r.URL.Query().Get("page"))
+	pageSize, _ := strconv.Atoi(r.URL.Query().Get("page_size"))
+	if page < 1 {
+		page = 1
+	}
+	if pageSize < 1 || pageSize > 50 {
+		pageSize = 12
+	}
+
+	total := len(achievements)
+	start := (page - 1) * pageSize
+	end := start + pageSize
+	if start > total {
+		start = total
+	}
+	if end > total {
+		end = total
+	}
+	paged := achievements[start:end]
+
 	writeJSON(w, http.StatusOK, map[string]interface{}{
-		"achievements": achievements,
+		"achievements": paged,
+		"total":        total,
+		"page":         page,
+		"page_size":    pageSize,
 	})
 }
 

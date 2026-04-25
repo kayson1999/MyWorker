@@ -66,19 +66,19 @@ export const planAPI = {
 
 // ==================== 计划排行榜 ====================
 export const planRankingAPI = {
-  getTotal(period = 'all') {
-    return request(`/plan-ranking/total?period=${period}`)
+  getTotal(period = 'all', page = 1, pageSize = 10) {
+    return request(`/plan-ranking/total?period=${period}&page=${page}&page_size=${pageSize}`)
   },
 
-  getStreak() {
-    return request('/plan-ranking/streak')
+  getStreak(page = 1, pageSize = 10) {
+    return request(`/plan-ranking/streak?page=${page}&page_size=${pageSize}`)
   },
 
-  getPlans() {
-    return request('/plan-ranking/plans')
+  getPlans(page = 1, pageSize = 10) {
+    return request(`/plan-ranking/plans?page=${page}&page_size=${pageSize}`)
   },
 
-  getCompletion() {
-    return request('/plan-ranking/completion')
+  getCompletion(page = 1, pageSize = 10) {
+    return request(`/plan-ranking/completion?page=${page}&page_size=${pageSize}`)
   }
 }

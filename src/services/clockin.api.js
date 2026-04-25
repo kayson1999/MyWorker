@@ -55,39 +55,46 @@ export const titleAPI = {
 
 // ==================== 排行榜 ====================
 export const rankingAPI = {
-  getWorkhours(period = 'week') {
-    return request(`/ranking/workhours?period=${period}`)
+  getWorkhours(period = 'week', page = 1, pageSize = 10) {
+    return request(`/ranking/workhours?period=${period}&page=${page}&page_size=${pageSize}`)
   },
 
-  getAvgWorkhours(period = 'week') {
-    return request(`/ranking/avgworkhours?period=${period}`)
+  getAvgWorkhours(period = 'week', page = 1, pageSize = 10) {
+    return request(`/ranking/avgworkhours?period=${period}&page=${page}&page_size=${pageSize}`)
   },
 
-  getEarly(period = 'week') {
-    return request(`/ranking/early?period=${period}`)
+  getEarly(period = 'week', page = 1, pageSize = 10) {
+    return request(`/ranking/early?period=${period}&page=${page}&page_size=${pageSize}`)
   },
 
-  getLate(period = 'week') {
-    return request(`/ranking/late?period=${period}`)
+  getLate(period = 'week', page = 1, pageSize = 10) {
+    return request(`/ranking/late?period=${period}&page=${page}&page_size=${pageSize}`)
   },
 
-  getStreak() {
-    return request('/ranking/streak')
+  getStreak(page = 1, pageSize = 10) {
+    return request(`/ranking/streak?page=${page}&page_size=${pageSize}`)
   },
 
-  getOntime(period = 'week') {
-    return request(`/ranking/ontime?period=${period}`)
+  getOntime(period = 'week', page = 1, pageSize = 10) {
+    return request(`/ranking/ontime?period=${period}&page=${page}&page_size=${pageSize}`)
   },
 
-  getTitles(period = 'week') {
-    return request(`/ranking/titles?period=${period}`)
+  getTitles(period = 'week', page = 1, pageSize = 10) {
+    return request(`/ranking/titles?period=${period}&page=${page}&page_size=${pageSize}`)
   }
 }
 
-// ==================== 工贼榜 ====================
+// ==================== 工贼榜 & 光荣榜 ====================
 export const gongzeiAPI = {
   getTop() {
     return request('/gongzei/top')
+  },
+  getGlory() {
+    return request('/gongzei/glory')
+  },
+  // 一次请求同时获取工贼榜和光荣榜
+  getAll() {
+    return request('/gongzei/all')
   }
 }
 
@@ -98,9 +105,9 @@ export const userCenterAPI = {
     return request('/usercenter/overview')
   },
 
-  // 成就列表
-  getAchievements() {
-    return request('/usercenter/achievements')
+  // 成就列表（分页）
+  getAchievements(page = 1, pageSize = 12) {
+    return request(`/usercenter/achievements?page=${page}&page_size=${pageSize}`)
   },
 
   // 经验值日志

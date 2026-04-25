@@ -88,12 +88,34 @@
       <div class="achievement-grid" v-if="achievements.length > 0">
         <div v-for="a in achievements" :key="a.id" class="achievement-item"
              :class="{ unlocked: a.unlocked, locked: !a.unlocked }"
-             :title="a.description">
+             @click="showAchievementDetail(a)">
           <span class="achievement-icon">{{ a.unlocked ? a.icon : '🔒' }}</span>
           <span class="achievement-name">{{ a.name }}</span>
         </div>
       </div>
       <div v-else class="empty-hint">完成打卡和计划来解锁成就吧！</div>
+      <!-- 分页控件 -->
+      <div class="achievement-pagination" v-if="achievementTotal > achievementPageSize">
+        <button class="page-btn" :disabled="achievementPage <= 1" @click="changeAchievementPage(achievementPage - 1)">←</button>
+        <span class="page-info font-mono">{{ achievementPage }} / {{ achievementTotalPages }}</span>
+        <button class="page-btn" :disabled="achievementPage >= achievementTotalPages" @click="changeAchievementPage(achievementPage + 1)">→</button>
+      </div>
+    </div>
+
+    <!-- 成就详情弹窗 -->
+    <div class="achievement-modal-overlay" v-if="selectedAchievement" @click.self="selectedAchievement = null">
+      <div class="achievement-modal glass-card">
+        <button class="modal-close" @click="selectedAchievement = null">✕</button>
+        <div class="modal-icon">{{ selectedAchievement.unlocked ? selectedAchievement.icon : '🔒' }}</div>
+        <h3 class="modal-name">{{ selectedAchievement.name }}</h3>
+        <p class="modal-desc">{{ selectedAchievement.description }}</p>
+        <div class="modal-divider"></div>
+        <div class="modal-condition-label">🎯 达成条件</div>
+        <p class="modal-condition">{{ selectedAchievement.condition || selectedAchievement.description }}</p>
+        <div class="modal-status" :class="selectedAchievement.unlocked ? 'status-unlocked' : 'status-locked'">
+          {{ selectedAchievement.unlocked ? '✅ 已解锁' + (selectedAchievement.unlocked_at ? ' · ' + selectedAchievement.unlocked_at.slice(0, 10) : '') : '🔒 未解锁' }}
+        </div>
+      </div>
     </div>
 
     <!-- 打卡热力图 -->
@@ -120,18 +142,7 @@
       </div>
     </div>
 
-    <!-- 最近经验值记录 -->
-    <div class="section glass-card">
-      <h4 class="section-title">⚡ 最近经验值</h4>
-      <div class="exp-log-list" v-if="expLogs.length > 0">
-        <div v-for="(log, idx) in expLogs.slice(0, 10)" :key="idx" class="exp-log-item">
-          <span class="exp-log-reason">{{ log.reason }}</span>
-          <span class="exp-log-amount font-mono">+{{ log.amount }} EXP</span>
-          <span class="exp-log-time">{{ formatTime(log.created_at) }}</span>
-        </div>
-      </div>
-      <div v-else class="empty-hint">暂无经验值记录，快去打卡吧！</div>
-    </div>
+
   </div>
 </template>
 
@@ -148,7 +159,11 @@ export default {
   setup() {
     const overview = ref(null)
     const achievements = ref([])
-    const expLogs = ref([])
+    const achievementPage = ref(1)
+    const achievementPageSize = ref(12)
+    const achievementTotal = ref(0)
+    const achievementTotalPages = ref(1)
+    const selectedAchievement = ref(null)
     const heatmapData = ref([])
 
     // 获取总览数据
@@ -161,24 +176,28 @@ export default {
       }
     }
 
-    // 获取成就列表
-    const fetchAchievements = async () => {
+    // 获取成就列表（分页）
+    const fetchAchievements = async (page = 1) => {
       try {
-        const data = await userCenterAPI.getAchievements()
+        const data = await userCenterAPI.getAchievements(page, achievementPageSize.value)
         achievements.value = data.achievements || []
+        achievementTotal.value = data.total || 0
+        achievementPage.value = data.page || 1
+        achievementTotalPages.value = Math.ceil(achievementTotal.value / achievementPageSize.value) || 1
       } catch (err) {
         console.error('获取成就失败:', err)
       }
     }
 
-    // 获取经验值日志
-    const fetchExpLogs = async () => {
-      try {
-        const data = await userCenterAPI.getExpLogs()
-        expLogs.value = data.logs || []
-      } catch (err) {
-        console.error('获取经验值日志失败:', err)
-      }
+    // 切换成就分页
+    const changeAchievementPage = (page) => {
+      if (page < 1 || page > achievementTotalPages.value) return
+      fetchAchievements(page)
+    }
+
+    // 展示成就详情弹窗
+    const showAchievementDetail = (achievement) => {
+      selectedAchievement.value = achievement
     }
 
     // 获取热力图数据
@@ -205,26 +224,18 @@ export default {
       }
     }
 
-    // 格式化时间
-    const formatTime = (timeStr) => {
-      if (!timeStr) return ''
-      const d = new Date(timeStr.replace(' ', 'T'))
-      const now = new Date()
-      const diff = now - d
-      if (diff < 60000) return '刚刚'
-      if (diff < 3600000) return Math.floor(diff / 60000) + '分钟前'
-      if (diff < 86400000) return Math.floor(diff / 3600000) + '小时前'
-      return timeStr.slice(5, 16)
-    }
-
     onMounted(() => {
       fetchOverview()
       fetchAchievements()
-      fetchExpLogs()
       fetchHeatmap()
     })
 
-    return { overview, achievements, expLogs, heatmapData, formatTime }
+    return {
+      overview, achievements, heatmapData,
+      achievementPage, achievementPageSize, achievementTotal, achievementTotalPages,
+      selectedAchievement,
+      changeAchievementPage, showAchievementDetail
+    }
   }
 }
 </script>
@@ -316,6 +327,11 @@ export default {
 
 .edit-profile-btn {
   padding: var(--space-2) var(--space-3);
+  min-width: 44px;
+  min-height: 44px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
   background: var(--bg-tertiary);
   border: 1px solid var(--border-color);
   border-radius: var(--radius-md);
@@ -505,6 +521,158 @@ export default {
   line-height: 1.3;
 }
 
+.achievement-item {
+  cursor: pointer;
+}
+
+/* ==================== 成就分页 ==================== */
+.achievement-pagination {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: var(--space-3);
+  margin-top: var(--space-4);
+  padding-top: var(--space-3);
+  border-top: 1px solid var(--border-color);
+}
+
+.page-btn {
+  padding: var(--space-1) var(--space-3);
+  min-width: 44px;
+  min-height: 44px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: var(--bg-tertiary);
+  border: 1px solid var(--border-color);
+  border-radius: var(--radius-md);
+  color: var(--text-secondary);
+  font-size: var(--text-sm);
+  cursor: pointer;
+  transition: all 0.3s ease;
+}
+
+.page-btn:hover:not(:disabled) {
+  border-color: var(--color-primary);
+  color: var(--color-primary-light);
+}
+
+.page-btn:disabled {
+  opacity: 0.3;
+  cursor: not-allowed;
+}
+
+.page-info {
+  font-size: var(--text-xs);
+  color: var(--text-muted);
+}
+
+/* ==================== 成就详情弹窗 ==================== */
+.achievement-modal-overlay {
+  position: fixed;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  background: rgba(0, 0, 0, 0.6);
+  backdrop-filter: blur(4px);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 1000;
+  padding: var(--space-4);
+}
+
+.achievement-modal {
+  position: relative;
+  width: 100%;
+  max-width: 360px;
+  padding: var(--space-6);
+  text-align: center;
+  animation: modal-in 0.3s ease;
+}
+
+@keyframes modal-in {
+  from { opacity: 0; transform: scale(0.9) translateY(10px); }
+  to { opacity: 1; transform: scale(1) translateY(0); }
+}
+
+.modal-close {
+  position: absolute;
+  top: var(--space-3);
+  right: var(--space-3);
+  background: none;
+  border: none;
+  color: var(--text-muted);
+  font-size: var(--text-lg);
+  cursor: pointer;
+  padding: var(--space-1);
+  line-height: 1;
+  transition: color 0.2s;
+}
+
+.modal-close:hover {
+  color: var(--text-primary);
+}
+
+.modal-icon {
+  font-size: 3rem;
+  margin-bottom: var(--space-3);
+}
+
+.modal-name {
+  font-size: var(--text-lg);
+  font-weight: 700;
+  color: var(--text-primary);
+  margin-bottom: var(--space-2);
+}
+
+.modal-desc {
+  font-size: var(--text-sm);
+  color: var(--text-secondary);
+  margin-bottom: var(--space-4);
+}
+
+.modal-divider {
+  height: 1px;
+  background: var(--border-color);
+  margin: var(--space-3) 0;
+}
+
+.modal-condition-label {
+  font-size: var(--text-xs);
+  font-weight: 600;
+  color: var(--color-primary-light);
+  margin-bottom: var(--space-2);
+}
+
+.modal-condition {
+  font-size: var(--text-sm);
+  color: var(--text-secondary);
+  line-height: 1.6;
+  margin-bottom: var(--space-4);
+}
+
+.modal-status {
+  display: inline-block;
+  padding: var(--space-1) var(--space-3);
+  border-radius: var(--radius-full);
+  font-size: var(--text-xs);
+  font-weight: 600;
+}
+
+.modal-status.status-unlocked {
+  background: rgba(34, 197, 94, 0.1);
+  color: #22c55e;
+  border: 1px solid rgba(34, 197, 94, 0.2);
+}
+
+.modal-status.status-locked {
+  background: var(--bg-tertiary);
+  color: var(--text-muted);
+  border: 1px solid var(--border-color);
+}
+
 /* ==================== 热力图 ==================== */
 .heatmap-container {
   overflow-x: auto;
@@ -561,41 +729,6 @@ export default {
   height: 12px;
 }
 
-/* ==================== 经验值日志 ==================== */
-.exp-log-list {
-  display: flex;
-  flex-direction: column;
-  gap: var(--space-2);
-}
-
-.exp-log-item {
-  display: flex;
-  align-items: center;
-  gap: var(--space-3);
-  padding: var(--space-2) var(--space-3);
-  background: var(--bg-tertiary);
-  border-radius: var(--radius-md);
-  font-size: var(--text-sm);
-}
-
-.exp-log-reason {
-  flex: 1;
-  color: var(--text-secondary);
-}
-
-.exp-log-amount {
-  color: #22c55e;
-  font-weight: 600;
-  font-size: var(--text-xs);
-}
-
-.exp-log-time {
-  font-size: var(--text-xs);
-  color: var(--text-muted);
-  min-width: 70px;
-  text-align: right;
-}
-
 .empty-hint {
   text-align: center;
   color: var(--text-muted);
@@ -609,6 +742,11 @@ export default {
   .style-tags { grid-template-columns: 1fr; }
   .achievement-grid { grid-template-columns: repeat(auto-fill, minmax(75px, 1fr)); }
   .level-header { flex-wrap: wrap; }
+  .level-card { padding: var(--space-4); }
+  .section { padding: var(--space-4); }
+  .stat-card { padding: var(--space-3); }
+  .stat-icon { font-size: 1.2rem; }
+  .stat-value { font-size: var(--text-base); }
   .heatmap-grid { min-width: 500px; }
   .heatmap-cell { width: 10px; height: 10px; }
   .heatmap-scroll-hint { display: block; }
@@ -616,7 +754,9 @@ export default {
     mask-image: linear-gradient(to right, black 85%, transparent 100%);
     -webkit-mask-image: linear-gradient(to right, black 85%, transparent 100%);
   }
-  .exp-log-item { flex-wrap: wrap; gap: var(--space-2); }
-  .exp-log-time { min-width: auto; }
+  .achievement-modal { max-width: 90vw; padding: var(--space-5); }
+  .modal-icon { font-size: 2.5rem; }
+  .edit-profile-btn { font-size: var(--text-xs); }
+  .level-avatar { width: 50px; height: 50px; font-size: 2rem; }
 }
 </style>

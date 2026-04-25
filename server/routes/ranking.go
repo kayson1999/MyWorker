@@ -6,6 +6,7 @@ import (
 	"math"
 	"net/http"
 	"sort"
+	"strconv"
 	"strings"
 
 	"myworker/db"
@@ -75,6 +76,33 @@ func getPeriodParam(r *http.Request) string {
 		period = "week"
 	}
 	return period
+}
+
+// getPaginationParams 从请求中获取分页参数，默认 page=1, pageSize=10
+func getPaginationParams(r *http.Request) (page, pageSize int) {
+	page = 1
+	pageSize = 10
+	if p, err := strconv.Atoi(r.URL.Query().Get("page")); err == nil && p > 0 {
+		page = p
+	}
+	if ps, err := strconv.Atoi(r.URL.Query().Get("page_size")); err == nil && ps > 0 && ps <= 50 {
+		pageSize = ps
+	}
+	return
+}
+
+// paginateRankList 对排行榜列表进行分页，返回分页后的列表和总数
+func paginateRankList[T any](list []T, page, pageSize int) ([]T, int) {
+	total := len(list)
+	start := (page - 1) * pageSize
+	if start >= total {
+		return list[:0], total
+	}
+	end := start + pageSize
+	if end > total {
+		end = total
+	}
+	return list[start:end], total
 }
 
 // userBasicInfo 用户基本信息（排行榜查询用）
@@ -182,9 +210,15 @@ func handleTitlesRanking(w http.ResponseWriter, r *http.Request) {
 		items = []TitleRankingItem{}
 	}
 
+	page, pageSize := getPaginationParams(r)
+	pagedItems, total := paginateRankList(items, page, pageSize)
+
 	writeJSON(w, http.StatusOK, map[string]interface{}{
-		"period": period,
-		"list":   items,
+		"period":    period,
+		"list":      pagedItems,
+		"total":     total,
+		"page":      page,
+		"page_size": pageSize,
 	})
 }
 
@@ -252,9 +286,15 @@ func handleWorkhoursRanking(w http.ResponseWriter, r *http.Request) {
 		list = []RankItem{}
 	}
 
+	page, pageSize := getPaginationParams(r)
+	pagedList, total := paginateRankList(list, page, pageSize)
+
 	writeJSON(w, http.StatusOK, map[string]interface{}{
-		"period": period,
-		"list":   list,
+		"period":    period,
+		"list":      pagedList,
+		"total":     total,
+		"page":      page,
+		"page_size": pageSize,
 	})
 }
 
@@ -302,9 +342,15 @@ func handleAvgWorkhoursRanking(w http.ResponseWriter, r *http.Request) {
 		list = []RankItem{}
 	}
 
+	page, pageSize := getPaginationParams(r)
+	pagedList, total := paginateRankList(list, page, pageSize)
+
 	writeJSON(w, http.StatusOK, map[string]interface{}{
-		"period": period,
-		"list":   list,
+		"period":    period,
+		"list":      pagedList,
+		"total":     total,
+		"page":      page,
+		"page_size": pageSize,
 	})
 }
 
@@ -367,9 +413,15 @@ func timeRanking(w http.ResponseWriter, r *http.Request, field, aggFunc string, 
 		list = []RankItem{}
 	}
 
+	page, pageSize := getPaginationParams(r)
+	pagedList, total := paginateRankList(list, page, pageSize)
+
 	writeJSON(w, http.StatusOK, map[string]interface{}{
-		"period": period,
-		"list":   list,
+		"period":    period,
+		"list":      pagedList,
+		"total":     total,
+		"page":      page,
+		"page_size": pageSize,
 	})
 }
 
@@ -416,8 +468,14 @@ func handleStreakRanking(w http.ResponseWriter, r *http.Request) {
 
 	list = finalizeRankList(list, true)
 
+	page, pageSize := getPaginationParams(r)
+	pagedList, total := paginateRankList(list, page, pageSize)
+
 	writeJSON(w, http.StatusOK, map[string]interface{}{
-		"list": list,
+		"list":      pagedList,
+		"total":     total,
+		"page":      page,
+		"page_size": pageSize,
 	})
 }
 
@@ -494,8 +552,14 @@ func handleOntimeRanking(w http.ResponseWriter, r *http.Request) {
 
 	list = finalizeRankList(list, true)
 
+	page, pageSize := getPaginationParams(r)
+	pagedList, total := paginateRankList(list, page, pageSize)
+
 	writeJSON(w, http.StatusOK, map[string]interface{}{
-		"period": period,
-		"list":   list,
+		"period":    period,
+		"list":      pagedList,
+		"total":     total,
+		"page":      page,
+		"page_size": pageSize,
 	})
 }

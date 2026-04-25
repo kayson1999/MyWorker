@@ -77,9 +77,15 @@ func handlePlanTotalRanking(w http.ResponseWriter, r *http.Request) {
 		list = []RankItem{}
 	}
 
+	page, pageSize := getPaginationParams(r)
+	pagedList, total := paginateRankList(list, page, pageSize)
+
 	writeJSON(w, http.StatusOK, map[string]interface{}{
-		"period": period,
-		"list":   list,
+		"period":    period,
+		"list":      pagedList,
+		"total":     total,
+		"page":      page,
+		"page_size": pageSize,
 	})
 }
 
@@ -155,8 +161,14 @@ func handlePlanStreakRanking(w http.ResponseWriter, r *http.Request) {
 
 	list = finalizeRankList(list, true)
 
+	page, pageSize := getPaginationParams(r)
+	pagedList, total := paginateRankList(list, page, pageSize)
+
 	writeJSON(w, http.StatusOK, map[string]interface{}{
-		"list": list,
+		"list":      pagedList,
+		"total":     total,
+		"page":      page,
+		"page_size": pageSize,
 	})
 }
 
@@ -198,8 +210,14 @@ func handlePlanCountRanking(w http.ResponseWriter, r *http.Request) {
 		list = []RankItem{}
 	}
 
+	page, pageSize := getPaginationParams(r)
+	pagedList, total := paginateRankList(list, page, pageSize)
+
 	writeJSON(w, http.StatusOK, map[string]interface{}{
-		"list": list,
+		"list":      pagedList,
+		"total":     total,
+		"page":      page,
+		"page_size": pageSize,
 	})
 }
 
@@ -286,8 +304,14 @@ func handlePlanCompletionRanking(w http.ResponseWriter, r *http.Request) {
 		list[i].Plans = getUserPublicPlans(d, list[i].UserID)
 	}
 
+	page, pageSize := getPaginationParams(r)
+	pagedList, total := paginateRankList(list, page, pageSize)
+
 	writeJSON(w, http.StatusOK, map[string]interface{}{
-		"list": list,
+		"list":      pagedList,
+		"total":     total,
+		"page":      page,
+		"page_size": pageSize,
 	})
 }
 

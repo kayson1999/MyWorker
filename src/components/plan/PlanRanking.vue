@@ -39,6 +39,13 @@
       </div>
     </div>
 
+    <!-- 分页控件 -->
+    <div class="pagination" v-if="!loading && totalPages > 1">
+      <button class="page-btn" :disabled="page <= 1" @click="goPage(page - 1)">‹</button>
+      <span class="page-info">{{ page }} / {{ totalPages }}</span>
+      <button class="page-btn" :disabled="page >= totalPages" @click="goPage(page + 1)">›</button>
+    </div>
+
     <!-- 空状态 -->
     <div class="empty-state glass-card" v-if="!loading && list.length === 0">
       <span class="empty-icon">🎯</span>
@@ -54,7 +61,7 @@
 </template>
 
 <script>
-import { ref, onMounted } from 'vue'
+import { ref, onMounted, computed } from 'vue'
 import { planRankingAPI } from '@/services/plan.api.js'
 
 export default {
@@ -65,6 +72,10 @@ export default {
     const list = ref([])
     const loading = ref(false)
     const medals = ['🥇', '🥈', '🥉']
+    const page = ref(1)
+    const total = ref(0)
+    const pageSize = 10
+    const totalPages = computed(() => Math.max(1, Math.ceil(total.value / pageSize)))
 
     const tabs = [
       { id: 'total', icon: '📅', label: '总打卡天数' },
@@ -79,22 +90,24 @@ export default {
         let data
         switch (activeTab.value) {
           case 'total':
-            data = await planRankingAPI.getTotal(period.value)
+            data = await planRankingAPI.getTotal(period.value, page.value, pageSize)
             break
           case 'streak':
-            data = await planRankingAPI.getStreak()
+            data = await planRankingAPI.getStreak(page.value, pageSize)
             break
           case 'plans':
-            data = await planRankingAPI.getPlans()
+            data = await planRankingAPI.getPlans(page.value, pageSize)
             break
           case 'completion':
-            data = await planRankingAPI.getCompletion()
+            data = await planRankingAPI.getCompletion(page.value, pageSize)
             break
         }
         list.value = data.list || []
+        total.value = data.total || 0
       } catch (err) {
         console.error('获取计划排行榜失败:', err)
         list.value = []
+        total.value = 0
       } finally {
         loading.value = false
       }
@@ -102,17 +115,25 @@ export default {
 
     const switchTab = (tab) => {
       activeTab.value = tab
+      page.value = 1
       fetchRanking()
     }
 
     const switchPeriod = (p) => {
       period.value = p
+      page.value = 1
+      fetchRanking()
+    }
+
+    const goPage = (p) => {
+      if (p < 1 || p > totalPages.value) return
+      page.value = p
       fetchRanking()
     }
 
     onMounted(fetchRanking)
 
-    return { activeTab, period, list, loading, medals, tabs, switchTab, switchPeriod }
+    return { activeTab, period, list, loading, medals, tabs, page, total, totalPages, switchTab, switchPeriod, goPage }
   }
 }
 </script>
@@ -296,6 +317,51 @@ export default {
   animation: glow-pulse 1.5s ease-in-out infinite;
 }
 
+/* 分页控件 */
+.pagination {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: var(--space-3);
+  padding: var(--space-3) 0;
+}
+
+.page-btn {
+  width: 36px;
+  height: 36px;
+  min-width: 44px;
+  min-height: 44px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: var(--bg-tertiary);
+  border: 1px solid var(--border-color);
+  border-radius: var(--radius-md);
+  color: var(--text-secondary);
+  font-size: var(--text-lg);
+  cursor: pointer;
+  transition: all 0.2s ease;
+}
+
+.page-btn:hover:not(:disabled) {
+  background: rgba(168, 85, 247, 0.15);
+  border-color: var(--color-primary);
+  color: var(--color-primary-light);
+}
+
+.page-btn:disabled {
+  opacity: 0.3;
+  cursor: not-allowed;
+}
+
+.page-info {
+  font-size: var(--text-sm);
+  color: var(--text-muted);
+  font-weight: 500;
+  min-width: 60px;
+  text-align: center;
+}
+
 @media (max-width: 768px) {
   /* Tab 改为横向滚动，增大触摸区域 */
   .ranking-tabs {
@@ -318,5 +384,10 @@ export default {
   .rank-badge { min-width: 32px; font-size: var(--text-sm); }
   .rank-avatar { width: 36px; height: 36px; font-size: 1.5rem; }
   .rank-plan-tag { max-width: 110px; font-size: 10px; }
+  .rank-name { font-size: var(--text-xs); }
+  .rank-value { font-size: var(--text-sm); }
+  .rank-info { min-width: 0; }
+  .rank-meta { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; max-width: 140px; }
+  .pagination { padding: var(--space-2) 0; }
 }
 </style>
