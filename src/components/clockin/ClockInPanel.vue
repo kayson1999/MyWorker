@@ -11,6 +11,7 @@
       <div class="action-card glass-card" :class="{ done: todayRecord?.clock_in }">
         <div class="action-icon">☀️</div>
         <div class="action-label">上班打卡</div>
+        <div class="record-date" v-if="isOvernightPending">正在完成 {{ todayRecord.date }} 的打卡</div>
         <div class="action-time font-mono" v-if="todayRecord?.clock_in && adjusting !== 'clock_in'">
           {{ todayRecord.clock_in }}
         </div>
@@ -61,7 +62,7 @@
     <div class="today-summary glass-card" v-if="todayRecord?.clock_in">
       <div class="summary-item">
         <span class="summary-icon">📊</span>
-        <span class="summary-label">今日工时</span>
+        <span class="summary-label">{{ isOvernightPending ? '本次工时' : '今日工时' }}</span>
         <span class="summary-value font-mono">
           {{ todayRecord.clock_out ? todayRecord.duration.toFixed(1) + 'h' : liveHours }}
         </span>
@@ -83,9 +84,10 @@
     <!-- 手动补卡 -->
     <div class="manual-section">
       <button class="manual-toggle" @click="showManual = !showManual">
-        {{ showManual ? '收起补卡' : '📝 手动补卡' }}
+        {{ showManual ? '收起' : '📝 补卡 / 修改历史记录' }}
       </button>
       <div class="manual-form glass-card" v-if="showManual">
+        <p class="manual-hint">选择任意过去日期即可新增或覆盖当天打卡时间；下班时间早于上班时间时，会按凌晨跨日下班计算工时。</p>
         <div class="form-row">
           <div class="form-group">
             <label class="form-label">日期</label>
@@ -102,7 +104,7 @@
         </div>
         <p class="error-msg" v-if="manualError">{{ manualError }}</p>
         <button class="save-btn" @click="handleManual" :disabled="loading">
-          {{ loading ? '提交中...' : '提交补卡' }}
+          {{ loading ? '提交中...' : '保存记录' }}
         </button>
       </div>
     </div>
@@ -139,6 +141,18 @@ export default {
       clock_out: '18:00'
     })
 
+    const getTodayISO = () => {
+      const now = new Date()
+      const y = now.getFullYear()
+      const m = String(now.getMonth() + 1).padStart(2, '0')
+      const d = String(now.getDate()).padStart(2, '0')
+      return `${y}-${m}-${d}`
+    }
+
+    const isOvernightPending = computed(() => {
+      return !!todayRecord.value?.date && todayRecord.value.date !== getTodayISO() && !todayRecord.value.clock_out
+    })
+
     // 实时时钟
     const updateClock = () => {
       const now = new Date()
@@ -152,7 +166,8 @@ export default {
       if (!todayRecord.value?.clock_in || todayRecord.value?.clock_out) return '0.0h'
       const [h, m] = todayRecord.value.clock_in.split(':').map(Number)
       const now = new Date()
-      const diff = (now.getHours() * 60 + now.getMinutes()) - (h * 60 + m)
+      let diff = (now.getHours() * 60 + now.getMinutes()) - (h * 60 + m)
+      if (isOvernightPending.value && diff < 0) diff += 24 * 60
       return (Math.max(0, diff) / 60).toFixed(1) + 'h (进行中...)'
     })
 
@@ -207,7 +222,11 @@ export default {
       loading.value = true
       try {
         const data = await clockinAPI.clockOut()
-        todayRecord.value = data.record
+        if (data.record?.date && data.record.date !== getTodayISO()) {
+          await fetchToday()
+        } else {
+          todayRecord.value = data.record
+        }
         let msg = '🌙 下班打卡成功！辛苦了~'
         if (data.exp_gained > 0) msg += ` +${data.exp_gained} EXP`
         if (data.leveled_up) msg += ` 🎉 升级到 Lv.${data.new_level}！`
@@ -231,12 +250,12 @@ export default {
       loading.value = true
       try {
         await clockinAPI.manual({ ...manualForm })
-        showToast('📝 补卡成功！')
+        showToast('📝 打卡记录已保存！')
         showManual.value = false
         fetchToday()
         emit('record-updated')
       } catch (err) {
-        manualError.value = err.message || '补卡失败'
+        manualError.value = err.message || '保存失败'
       } finally {
         loading.value = false
       }
@@ -264,10 +283,15 @@ export default {
       loading.value = true
       try {
         const data = await clockinAPI.adjust({
+          date: todayRecord.value?.date,
           type: adjusting.value,
           time: adjustTime.value
         })
-        todayRecord.value = data.record
+        if (data.record?.date && data.record.date !== getTodayISO()) {
+          await fetchToday()
+        } else {
+          todayRecord.value = data.record
+        }
         showToast('🕐 打卡时间已调整！')
         adjusting.value = null
         adjustTime.value = ''
@@ -291,7 +315,7 @@ export default {
 
     return {
       todayRecord, todayTitle, loading, showManual, manualError, toast,
-      currentTime, currentDate, liveHours,
+      currentTime, currentDate, liveHours, isOvernightPending,
       manualForm, handleClockIn, handleClockOut, handleManual,
       adjusting, adjustTime, startAdjust, cancelAdjust, confirmAdjust
     }
@@ -359,6 +383,15 @@ export default {
   font-size: var(--text-base);
   font-weight: 600;
   color: var(--text-primary);
+}
+
+.record-date {
+  font-size: var(--text-xs);
+  color: var(--neon-pink);
+  background: rgba(244, 114, 182, 0.12);
+  border: 1px solid rgba(244, 114, 182, 0.25);
+  border-radius: var(--radius-full);
+  padding: 2px 10px;
 }
 
 .action-time {
@@ -575,6 +608,13 @@ export default {
   display: flex;
   flex-direction: column;
   gap: var(--space-4);
+}
+
+.manual-hint {
+  margin: 0;
+  color: var(--text-muted);
+  font-size: var(--text-xs);
+  line-height: 1.6;
 }
 
 .form-row {

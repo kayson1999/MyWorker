@@ -117,32 +117,6 @@
         </div>
       </div>
     </div>
-
-    <!-- 打卡热力图 -->
-    <div class="section glass-card">
-      <h4 class="section-title">📊 打卡热力图</h4>
-  <div class="heatmap-container">
-        <div class="heatmap-scroll-hint">← 左右滑动查看更多</div>
-        <div class="heatmap-grid">
-          <div v-for="(day, idx) in heatmapData" :key="idx"
-               class="heatmap-cell"
-               :class="'level-' + day.level"
-               :title="day.date + (day.duration > 0 ? ' · ' + day.duration + 'h' : '')">
-          </div>
-        </div>
-        <div class="heatmap-legend">
-          <span class="legend-label">少</span>
-          <span class="heatmap-cell level-0 legend-cell"></span>
-          <span class="heatmap-cell level-1 legend-cell"></span>
-          <span class="heatmap-cell level-2 legend-cell"></span>
-          <span class="heatmap-cell level-3 legend-cell"></span>
-          <span class="heatmap-cell level-4 legend-cell"></span>
-          <span class="legend-label">多</span>
-        </div>
-      </div>
-    </div>
-
-
   </div>
 </template>
 
@@ -164,7 +138,6 @@ export default {
     const achievementTotal = ref(0)
     const achievementTotalPages = ref(1)
     const selectedAchievement = ref(null)
-    const heatmapData = ref([])
 
     // 获取总览数据
     const fetchOverview = async () => {
@@ -200,38 +173,13 @@ export default {
       selectedAchievement.value = achievement
     }
 
-    // 获取热力图数据
-    const fetchHeatmap = async () => {
-      try {
-        const data = await userCenterAPI.getHeatmap()
-        // 补全过去一年的每一天
-        const heatmapMap = {}
-        for (const item of (data.heatmap || [])) {
-          heatmapMap[item.date] = item
-        }
-
-        const days = []
-        const today = new Date()
-        for (let i = 364; i >= 0; i--) {
-          const d = new Date(today)
-          d.setDate(d.getDate() - i)
-          const dateStr = d.toISOString().slice(0, 10)
-          days.push(heatmapMap[dateStr] || { date: dateStr, duration: 0, level: 0 })
-        }
-        heatmapData.value = days
-      } catch (err) {
-        console.error('获取热力图失败:', err)
-      }
-    }
-
     onMounted(() => {
       fetchOverview()
       fetchAchievements()
-      fetchHeatmap()
     })
 
     return {
-      overview, achievements, heatmapData,
+      overview, achievements,
       achievementPage, achievementPageSize, achievementTotal, achievementTotalPages,
       selectedAchievement,
       changeAchievementPage, showAchievementDetail
@@ -673,62 +621,6 @@ export default {
   border: 1px solid var(--border-color);
 }
 
-/* ==================== 热力图 ==================== */
-.heatmap-container {
-  overflow-x: auto;
-  position: relative;
-  /* 渐隐边缘提示可滑动 */
-  mask-image: linear-gradient(to right, black 90%, transparent 100%);
-  -webkit-mask-image: linear-gradient(to right, black 90%, transparent 100%);
-}
-
-.heatmap-scroll-hint {
-  display: none;
-  font-size: 10px;
-  color: var(--text-muted);
-  text-align: center;
-  margin-bottom: var(--space-2);
-}
-
-.heatmap-grid {
-  display: grid;
-  grid-template-rows: repeat(7, 1fr);
-  grid-auto-flow: column;
-  gap: 3px;
-  min-width: 700px;
-}
-
-.heatmap-cell {
-  width: 12px;
-  height: 12px;
-  border-radius: 2px;
-  background: var(--bg-tertiary);
-  border: 1px solid rgba(168, 85, 247, 0.05);
-}
-
-.heatmap-cell.level-1 { background: rgba(168, 85, 247, 0.15); }
-.heatmap-cell.level-2 { background: rgba(168, 85, 247, 0.35); }
-.heatmap-cell.level-3 { background: rgba(168, 85, 247, 0.6); }
-.heatmap-cell.level-4 { background: rgba(168, 85, 247, 0.9); }
-
-.heatmap-legend {
-  display: flex;
-  align-items: center;
-  gap: var(--space-1);
-  margin-top: var(--space-3);
-  justify-content: flex-end;
-}
-
-.legend-label {
-  font-size: 10px;
-  color: var(--text-muted);
-}
-
-.legend-cell {
-  width: 12px;
-  height: 12px;
-}
-
 .empty-hint {
   text-align: center;
   color: var(--text-muted);
@@ -747,13 +639,6 @@ export default {
   .stat-card { padding: var(--space-3); }
   .stat-icon { font-size: 1.2rem; }
   .stat-value { font-size: var(--text-base); }
-  .heatmap-grid { min-width: 500px; }
-  .heatmap-cell { width: 10px; height: 10px; }
-  .heatmap-scroll-hint { display: block; }
-  .heatmap-container {
-    mask-image: linear-gradient(to right, black 85%, transparent 100%);
-    -webkit-mask-image: linear-gradient(to right, black 85%, transparent 100%);
-  }
   .achievement-modal { max-width: 90vw; padding: var(--space-5); }
   .modal-icon { font-size: 2.5rem; }
   .edit-profile-btn { font-size: var(--text-xs); }

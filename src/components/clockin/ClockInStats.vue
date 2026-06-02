@@ -1,16 +1,26 @@
 <template>
   <div class="stats-wrapper">
     <!-- 周期切换 -->
-    <div class="period-switch">
-      <button class="period-btn" :class="{ active: period === 'week' }" @click="switchPeriod('week')">
-        📅 本周
-      </button>
-      <button class="period-btn" :class="{ active: period === 'month' }" @click="switchPeriod('month')">
-        🗓️ 本月
-      </button>
-      <button class="period-btn" :class="{ active: period === 'year' }" @click="switchPeriod('year')">
-        📆 全年
-      </button>
+    <div class="period-panel glass-card">
+      <div class="period-switch">
+        <button
+          v-for="option in periodOptions"
+          :key="option.value"
+          class="period-btn"
+          :class="{ active: period === option.value }"
+          @click="switchPeriod(option.value)"
+        >
+          {{ option.icon }} {{ option.label }}
+        </button>
+      </div>
+      <div class="period-navigator">
+        <button class="nav-btn" @click="shiftPeriod(1)">← 上一{{ periodUnitLabel }}</button>
+        <div class="period-current">
+          <span class="period-title">{{ periodDisplayLabel }}</span>
+          <span class="period-range font-mono" v-if="stats">{{ stats.startDate }} ~ {{ stats.endDate }}</span>
+        </div>
+        <button class="nav-btn" :disabled="periodOffset === 0" @click="shiftPeriod(-1)">下一{{ periodUnitLabel }} →</button>
+      </div>
     </div>
 
     <!-- 统计卡片 -->
@@ -55,8 +65,9 @@
     <!-- 工时图表 -->
     <div class="chart-section glass-card" v-if="stats && chartData.length > 0">
       <div class="chart-header">
-        <h3 class="chart-title">📊 {{ period === 'year' ? '月度工时' : '每日工时' }}</h3>
+        <h3 class="chart-title">📊 {{ chartTitle }}</h3>
         <div class="chart-legend">
+          <span class="legend-item"><span class="legend-dot legend-line"></span>工时趋势</span>
           <span class="legend-item"><span class="legend-dot legend-overtime"></span>加班</span>
           <span class="legend-item"><span class="legend-dot legend-normal"></span>达标</span>
           <span class="legend-item"><span class="legend-dot legend-short"></span>不足</span>
@@ -77,9 +88,13 @@
               <span class="standard-label font-mono">8h</span>
             </div>
           </div>
+          <svg class="line-chart" viewBox="0 0 100 100" preserveAspectRatio="none" aria-hidden="true">
+            <polyline v-if="linePoints" class="workhour-line" :points="linePoints"></polyline>
+            <circle v-if="singlePoint" class="workhour-point" :cx="singlePoint.x" :cy="singlePoint.y" r="2.4"></circle>
+          </svg>
           <!-- 柱体区域 -->
           <div class="bars-area">
-            <div class="bar-group" v-for="(item, idx) in chartData" :key="item.label"
+            <div class="bar-group" v-for="(item, idx) in chartData" :key="item.fullLabel"
               @mouseenter="activeBar = idx" @mouseleave="activeBar = -1"
                  @touchstart.passive="activeBar = idx" @touchend="activeBar = -1">
               <div class="bar-col">
@@ -97,6 +112,20 @@
               <span class="bar-label font-mono" :class="{ 'label-active': activeBar === idx }">{{ item.label }}</span>
             </div>
           </div>
+          <div class="line-points">
+            <button
+              v-for="(item, idx) in chartData"
+              :key="'point-' + item.fullLabel"
+              type="button"
+              class="line-point"
+              :class="{ 'point-active': activeBar === idx }"
+              :style="{ left: pointPosition(idx), bottom: (item.value / maxY * 100) + '%' }"
+              @mouseenter="activeBar = idx"
+              @mouseleave="activeBar = -1"
+              @touchstart.passive="activeBar = idx"
+              @touchend="activeBar = -1"
+            ></button>
+          </div>
         </div>
       </div>
       <!-- 图表底部摘要 -->
@@ -105,7 +134,7 @@
         <span class="summary-divider">·</span>
         <span class="summary-item">最高 <strong class="font-mono">{{ maxDuration.toFixed(1) }}h</strong></span>
         <span class="summary-divider">·</span>
-        <span class="summary-item">共 <strong class="font-mono">{{ chartData.length }}</strong> {{ period === 'year' ? '个月' : '天' }}</span>
+        <span class="summary-item">共 <strong class="font-mono">{{ chartData.length }}</strong> {{ chartItemUnitLabel }}</span>
       </div>
     </div>
 
@@ -131,14 +160,21 @@ export default {
   name: 'ClockInStats',
   setup() {
     const period = ref('week')
+    const periodOffset = ref(0)
     const stats = ref(null)
     const loading = ref(false)
     const activeBar = ref(-1)
 
+    const periodOptions = [
+      { value: 'week', label: '周', icon: '📅' },
+      { value: 'month', label: '月', icon: '🗓️' },
+      { value: 'year', label: '年', icon: '📆' }
+    ]
+
     const fetchStats = async () => {
       loading.value = true
       try {
-        const data = await clockinAPI.getStats(period.value)
+        const data = await clockinAPI.getStats(period.value, periodOffset.value)
         stats.value = data
       } catch (err) {
         console.error('获取统计失败:', err)
@@ -149,11 +185,38 @@ export default {
 
     const switchPeriod = (p) => {
       period.value = p
+      periodOffset.value = 0
       activeBar.value = -1
       fetchStats()
     }
 
-    // 图表数据：全年模式按月聚合，其他模式按天
+    const shiftPeriod = (step) => {
+      const nextOffset = periodOffset.value + step
+      if (nextOffset < 0) return
+      periodOffset.value = nextOffset
+      activeBar.value = -1
+      fetchStats()
+    }
+
+    const periodUnitLabel = computed(() => {
+      const option = periodOptions.find(item => item.value === period.value)
+      return option?.label || '周'
+    })
+
+    const periodDisplayLabel = computed(() => {
+      if (periodOffset.value === 0) return '本' + periodUnitLabel.value
+      if (periodOffset.value === 1) return '上' + periodUnitLabel.value
+      return '上'.repeat(periodOffset.value) + periodUnitLabel.value
+    })
+
+    const chartTitle = computed(() => {
+      if (period.value === 'year') return '年度工时趋势'
+      return `${periodDisplayLabel.value}工时趋势`
+    })
+
+    const chartItemUnitLabel = computed(() => period.value === 'year' ? '个月' : '天')
+
+    // 图表数据：年模式按月聚合，周/月模式按天展示
     const chartData = computed(() => {
       if (!stats.value || !stats.value.records) return []
       const records = stats.value.records
@@ -168,7 +231,7 @@ export default {
           monthMap[month].count++
         })
         const months = ['01','02','03','04','05','06','07','08','09','10','11','12']
-        const year = new Date().getFullYear()
+        const year = stats.value.startDate ? stats.value.startDate.slice(0, 4) : new Date().getFullYear().toString()
         return months
           .filter(m => monthMap[year + '-' + m])
           .map(m => {
@@ -218,12 +281,37 @@ export default {
       return 'bar-short'
     }
 
+    const pointPosition = (idx) => {
+      const len = chartData.value.length
+      if (len <= 1) return '50%'
+      return (idx / (len - 1) * 100) + '%'
+    }
+
+    const linePoints = computed(() => {
+      const len = chartData.value.length
+      if (len <= 1) return ''
+      return chartData.value.map((item, idx) => {
+        const x = idx / (len - 1) * 100
+        const y = 100 - item.value / maxY.value * 100
+        return `${x},${y}`
+      }).join(' ')
+    })
+
+    const singlePoint = computed(() => {
+      if (chartData.value.length !== 1) return null
+      return {
+        x: 50,
+        y: 100 - chartData.value[0].value / maxY.value * 100
+      }
+    })
+
     onMounted(fetchStats)
 
     return {
-      period, stats, loading, activeBar,
-      switchPeriod, barClass,
-      chartData, maxDuration, maxY, yTicks
+      period, periodOffset, periodOptions, stats, loading, activeBar,
+      switchPeriod, shiftPeriod, barClass, pointPosition,
+      periodUnitLabel, periodDisplayLabel, chartTitle, chartItemUnitLabel,
+      chartData, maxDuration, maxY, yTicks, linePoints, singlePoint
     }
   }
 }
@@ -239,9 +327,17 @@ export default {
 }
 
 /* 周期切换 */
+.period-panel {
+  padding: var(--space-4);
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-4);
+}
+
 .period-switch {
   display: flex;
   gap: var(--space-3);
+  flex-wrap: wrap;
 }
 
 .period-btn {
@@ -264,6 +360,55 @@ export default {
 .period-btn:hover:not(.active) {
   border-color: var(--color-primary);
   color: var(--color-primary-light);
+}
+
+.period-navigator {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-3);
+}
+
+.nav-btn {
+  padding: var(--space-2) var(--space-4);
+  min-height: 40px;
+  background: var(--bg-tertiary);
+  border: 1px solid var(--border-color);
+  border-radius: var(--radius-md);
+  color: var(--text-secondary);
+  font-size: var(--text-sm);
+  cursor: pointer;
+  transition: all 0.3s ease;
+}
+
+.nav-btn:hover:not(:disabled) {
+  border-color: var(--color-primary);
+  color: var(--color-primary-light);
+}
+
+.nav-btn:disabled {
+  opacity: 0.35;
+  cursor: not-allowed;
+}
+
+.period-current {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: var(--space-1);
+  min-width: 0;
+}
+
+.period-title {
+  font-size: var(--text-base);
+  font-weight: 700;
+  color: var(--color-primary-light);
+}
+
+.period-range {
+  font-size: var(--text-xs);
+  color: var(--text-muted);
+  text-align: center;
 }
 
 /* 统计卡片 */
@@ -345,6 +490,7 @@ export default {
 .legend-overtime { background: linear-gradient(135deg, #F472B6, #A855F7); }
 .legend-normal { background: linear-gradient(135deg, #818CF8, #6366F1); }
 .legend-short { background: rgba(168, 85, 247, 0.25); }
+.legend-line { background: #22d3ee; border-radius: 50%; }
 
 /* 图表主体布局 */
 .chart-body {
@@ -376,6 +522,58 @@ export default {
   position: relative;
   border-left: 1px solid rgba(168, 85, 247, 0.15);
   border-bottom: 1px solid rgba(168, 85, 247, 0.15);
+}
+
+.line-chart {
+  position: absolute;
+  inset: 0 8px 0 8px;
+  width: calc(100% - 16px);
+  height: 100%;
+  overflow: visible;
+  pointer-events: none;
+  z-index: 4;
+}
+
+.workhour-line {
+  fill: none;
+  stroke: #22d3ee;
+  stroke-width: 1.8;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+  vector-effect: non-scaling-stroke;
+  filter: drop-shadow(0 0 6px rgba(34, 211, 238, 0.45));
+}
+
+.workhour-point {
+  fill: #22d3ee;
+  filter: drop-shadow(0 0 6px rgba(34, 211, 238, 0.6));
+}
+
+.line-points {
+  position: absolute;
+  inset: 0 8px 0 8px;
+  z-index: 5;
+  pointer-events: none;
+}
+
+.line-point {
+  position: absolute;
+  width: 9px;
+  height: 9px;
+  padding: 0;
+  border: 2px solid var(--bg-secondary);
+  border-radius: 50%;
+  background: #22d3ee;
+  box-shadow: 0 0 8px rgba(34, 211, 238, 0.55);
+  transform: translate(-50%, 50%);
+  pointer-events: auto;
+  cursor: pointer;
+  transition: transform 0.2s ease, box-shadow 0.2s ease;
+}
+
+.line-point.point-active {
+  transform: translate(-50%, 50%) scale(1.3);
+  box-shadow: 0 0 14px rgba(34, 211, 238, 0.85);
 }
 
 /* 网格线 */
@@ -596,6 +794,9 @@ export default {
 }
 
 @media (max-width: 768px) {
+  .period-panel { padding: var(--space-3); }
+  .period-navigator { flex-direction: column; }
+  .nav-btn { width: 100%; }
   .stats-grid { grid-template-columns: repeat(2, 1fr); }
   .chart-section { padding: var(--space-4); }
   .chart-body { height: 180px; }

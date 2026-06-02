@@ -5,6 +5,17 @@
 export { authAPI, userAPI } from './auth.api.js'
 import { request } from './auth.api.js'
 
+const withQuery = (path, params = {}) => {
+  const query = new URLSearchParams()
+  Object.entries(params).forEach(([key, value]) => {
+    if (value !== undefined && value !== null && value !== '') {
+      query.set(key, String(value))
+    }
+  })
+  const queryString = query.toString()
+  return queryString ? `${path}?${queryString}` : path
+}
+
 // ==================== 打卡 ====================
 export const clockinAPI = {
   clockIn() {
@@ -34,11 +45,11 @@ export const clockinAPI = {
   },
 
   getRecords(start, end) {
-    return request(`/clockin/records?start=${start}&end=${end}`)
+    return request(withQuery('/clockin/records', { start, end }))
   },
 
-  getStats(period = 'week') {
-    return request(`/clockin/stats?period=${period}`)
+  getStats(period = 'week', offset = 0) {
+    return request(withQuery('/clockin/stats', { period, offset }))
   }
 }
 
@@ -56,31 +67,31 @@ export const titleAPI = {
 // ==================== 排行榜 ====================
 export const rankingAPI = {
   getWorkhours(period = 'week', page = 1, pageSize = 10) {
-    return request(`/ranking/workhours?period=${period}&page=${page}&page_size=${pageSize}`)
+    return request(withQuery('/ranking/workhours', { period, page, page_size: pageSize }))
   },
 
   getAvgWorkhours(period = 'week', page = 1, pageSize = 10) {
-    return request(`/ranking/avgworkhours?period=${period}&page=${page}&page_size=${pageSize}`)
+    return request(withQuery('/ranking/avgworkhours', { period, page, page_size: pageSize }))
   },
 
   getEarly(period = 'week', page = 1, pageSize = 10) {
-    return request(`/ranking/early?period=${period}&page=${page}&page_size=${pageSize}`)
+    return request(withQuery('/ranking/early', { period, page, page_size: pageSize }))
   },
 
   getLate(period = 'week', page = 1, pageSize = 10) {
-    return request(`/ranking/late?period=${period}&page=${page}&page_size=${pageSize}`)
+    return request(withQuery('/ranking/late', { period, page, page_size: pageSize }))
   },
 
   getStreak(page = 1, pageSize = 10) {
-    return request(`/ranking/streak?page=${page}&page_size=${pageSize}`)
+    return request(withQuery('/ranking/streak', { page, page_size: pageSize }))
   },
 
   getOntime(period = 'week', page = 1, pageSize = 10) {
-    return request(`/ranking/ontime?period=${period}&page=${page}&page_size=${pageSize}`)
+    return request(withQuery('/ranking/ontime', { period, page, page_size: pageSize }))
   },
 
   getTitles(period = 'week', page = 1, pageSize = 10) {
-    return request(`/ranking/titles?period=${period}&page=${page}&page_size=${pageSize}`)
+    return request(withQuery('/ranking/titles', { period, page, page_size: pageSize }))
   }
 }
 
@@ -107,16 +118,11 @@ export const userCenterAPI = {
 
   // 成就列表（分页）
   getAchievements(page = 1, pageSize = 12) {
-    return request(`/usercenter/achievements?page=${page}&page_size=${pageSize}`)
+    return request(withQuery('/usercenter/achievements', { page, page_size: pageSize }))
   },
 
   // 经验值日志
   getExpLogs() {
     return request('/usercenter/exp-logs')
-  },
-
-  // 打卡热力图
-  getHeatmap() {
-    return request('/usercenter/heatmap')
   }
 }

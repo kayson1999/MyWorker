@@ -5,8 +5,8 @@ import (
 	"fmt"
 	"math"
 	"net/http"
-	"regexp"
 	"sort"
+	"strconv"
 	"time"
 
 	"myworker/db"
@@ -54,16 +54,51 @@ func todayDate() string {
 	return time.Now().Format("2006-01-02")
 }
 
+// yesterdayDate 获取昨天日期 YYYY-MM-DD
+func yesterdayDate() string {
+	return time.Now().AddDate(0, 0, -1).Format("2006-01-02")
+}
+
+func parseDate(date string) (time.Time, bool) {
+	parsed, err := time.Parse("2006-01-02", date)
+	if err != nil || parsed.Format("2006-01-02") != date {
+		return time.Time{}, false
+	}
+	return parsed, true
+}
+
+func isValidDate(date string) bool {
+	_, ok := parseDate(date)
+	return ok
+}
+
+func clockMinutes(clockTime string) (int, bool) {
+	var h, m int
+	n, err := fmt.Sscanf(clockTime, "%02d:%02d", &h, &m)
+	if err != nil || n != 2 || fmt.Sprintf("%02d:%02d", h, m) != clockTime {
+		return 0, false
+	}
+	if h < 0 || h >= 24 || m < 0 || m >= 60 {
+		return 0, false
+	}
+	return h*60 + m, true
+}
+
+func isValidClockTime(clockTime string) bool {
+	_, ok := clockMinutes(clockTime)
+	return ok
+}
+
 // calcDuration 计算工作时长（小时），支持跨午夜场景
 func calcDuration(clockIn, clockOut string) float64 {
 	if clockIn == "" || clockOut == "" {
 		return 0
 	}
-	var inH, inM, outH, outM int
-	fmt.Sscanf(clockIn, "%d:%d", &inH, &inM)
-	fmt.Sscanf(clockOut, "%d:%d", &outH, &outM)
-	inMinutes := inH*60 + inM
-	outMinutes := outH*60 + outM
+	inMinutes, okIn := clockMinutes(clockIn)
+	outMinutes, okOut := clockMinutes(clockOut)
+	if !okIn || !okOut {
+		return 0
+	}
 	// 支持跨午夜：如果下班时间小于上班时间，加24小时
 	if outMinutes < inMinutes {
 		outMinutes += 24 * 60
@@ -74,8 +109,16 @@ func calcDuration(clockIn, clockOut string) float64 {
 
 // getDateRange 根据周期获取日期范围
 func getDateRange(period string) (startDate, endDate string) {
+	return getDateRangeWithOffset(period, 0)
+}
+
+// getDateRangeWithOffset 根据周期和向前偏移量获取日期范围，offset=0 表示当前周期，1 表示上一个周期
+func getDateRangeWithOffset(period string, offset int) (startDate, endDate string) {
+	if offset < 0 {
+		offset = 0
+	}
+
 	today := time.Now()
-	endDate = today.Format("2006-01-02")
 
 	switch period {
 	case "week":
@@ -83,12 +126,19 @@ func getDateRange(period string) (startDate, endDate string) {
 		if weekday == 0 {
 			weekday = 7
 		}
-		monday := today.AddDate(0, 0, -(weekday - 1))
+		monday := today.AddDate(0, 0, -(weekday-1)-offset*7)
+		sunday := monday.AddDate(0, 0, 6)
 		startDate = monday.Format("2006-01-02")
+		endDate = sunday.Format("2006-01-02")
 	case "year":
-		startDate = fmt.Sprintf("%d-01-01", today.Year())
+		year := today.Year() - offset
+		startDate = fmt.Sprintf("%d-01-01", year)
+		endDate = fmt.Sprintf("%d-12-31", year)
 	default: // month
-		startDate = fmt.Sprintf("%d-%02d-01", today.Year(), today.Month())
+		monthStart := time.Date(today.Year(), today.Month(), 1, 0, 0, 0, 0, today.Location()).AddDate(0, -offset, 0)
+		monthEnd := monthStart.AddDate(0, 1, -1)
+		startDate = monthStart.Format("2006-01-02")
+		endDate = monthEnd.Format("2006-01-02")
 	}
 	return
 }
@@ -170,9 +220,7 @@ func handleClockIn(w http.ResponseWriter, r *http.Request) {
 	leveledUp, newLevel, expAmount := utils.AddExp(d, userID, "clockin_in", expSourceID)
 
 	// 早起打卡奖励(8:30前)
-	var earlyH, earlyM int
-	fmt.Sscanf(t, "%d:%d", &earlyH, &earlyM)
-	if earlyH*60+earlyM < 8*60+30 {
+	if minutes, ok := clockMinutes(t); ok && minutes < 8*60+30 {
 		earlySourceID := fmt.Sprintf("%s_%s_early", userID, date)
 		utils.AddExp(d, userID, "clockin_early", earlySourceID)
 	}
@@ -203,7 +251,7 @@ func handleClockOut(w http.ResponseWriter, r *http.Request) {
 	}
 	defer tx.Rollback()
 
-	// 在事务内查询
+	// 优先完成今天的上班记录；如果今天没有上班记录，则允许凌晨完成昨天未下班的记录
 	var existing *ClockRecord
 	row := tx.QueryRow("SELECT id, user_id, date, clock_in, clock_out, duration, is_manual, created_at FROM clock_records WHERE user_id = ? AND date = ?", userID, date)
 	r2, scanErr := scanRecord(row)
@@ -212,14 +260,24 @@ func handleClockOut(w http.ResponseWriter, r *http.Request) {
 	}
 
 	if existing == nil || existing.ClockIn == nil {
-		writeJSON(w, http.StatusBadRequest, map[string]string{"error": "请先打上班卡"})
+		yesterday := yesterdayDate()
+		row = tx.QueryRow("SELECT id, user_id, date, clock_in, clock_out, duration, is_manual, created_at FROM clock_records WHERE user_id = ? AND date = ?", userID, yesterday)
+		r2, scanErr = scanRecord(row)
+		if scanErr == nil && r2.ClockIn != nil && r2.ClockOut == nil {
+			existing = r2
+			date = yesterday
+		}
+	}
+
+	if existing == nil || existing.ClockIn == nil {
+		writeJSON(w, http.StatusBadRequest, map[string]string{"error": "请先打上班卡；如果是凌晨下班，请确认昨天有未完成的上班打卡"})
 		return
 	}
 
 	// Bug修复：防止重复下班打卡
 	if existing.ClockOut != nil {
 		writeJSON(w, http.StatusBadRequest, map[string]interface{}{
-			"error":  "今天已经打过下班卡了，如需修改请使用调整功能",
+			"error":  "该日期已经打过下班卡了，如需修改请使用调整功能",
 			"record": existing,
 		})
 		return
@@ -293,9 +351,18 @@ func handleManual(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	dateRegex := regexp.MustCompile(`^\d{4}-\d{2}-\d{2}$`)
-	if !dateRegex.MatchString(body.Date) {
+	if !isValidDate(body.Date) {
 		writeJSON(w, http.StatusBadRequest, map[string]string{"error": "日期格式不正确，应为 YYYY-MM-DD"})
+		return
+	}
+
+	if !isValidClockTime(body.ClockIn) || !isValidClockTime(body.ClockOut) {
+		writeJSON(w, http.StatusBadRequest, map[string]string{"error": "时间格式不正确，应为 HH:mm"})
+		return
+	}
+
+	if body.ClockIn == body.ClockOut {
+		writeJSON(w, http.StatusBadRequest, map[string]string{"error": "上班时间和下班时间不能相同"})
 		return
 	}
 
@@ -323,6 +390,8 @@ func handleManual(w http.ResponseWriter, r *http.Request) {
 	}
 
 	record := getRecordByUserDate(userID, body.Date)
+	updateUserTitles(userID)
+	checkClockInAchievementsForUser(d, userID)
 	writeJSON(w, http.StatusOK, map[string]interface{}{
 		"message": "补卡成功",
 		"record":  record,
@@ -336,6 +405,7 @@ func handleAdjust(w http.ResponseWriter, r *http.Request) {
 	date := todayDate()
 
 	var body struct {
+		Date string `json:"date"`
 		Type string `json:"type"`
 		Time string `json:"time"`
 	}
@@ -354,15 +424,26 @@ func handleAdjust(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	timeRegex := regexp.MustCompile(`^\d{2}:\d{2}$`)
-	if !timeRegex.MatchString(body.Time) {
+	if body.Date != "" {
+		date = body.Date
+	}
+	if !isValidDate(date) {
+		writeJSON(w, http.StatusBadRequest, map[string]string{"error": "日期格式不正确，应为 YYYY-MM-DD"})
+		return
+	}
+	if date > todayDate() {
+		writeJSON(w, http.StatusBadRequest, map[string]string{"error": "不能调整未来日期的打卡时间"})
+		return
+	}
+
+	if !isValidClockTime(body.Time) {
 		writeJSON(w, http.StatusBadRequest, map[string]string{"error": "时间格式不正确，应为 HH:mm"})
 		return
 	}
 
 	existing := getRecordByUserDate(userID, date)
 	if existing == nil {
-		writeJSON(w, http.StatusBadRequest, map[string]string{"error": "今天还没有打卡记录，无法调整"})
+		writeJSON(w, http.StatusBadRequest, map[string]string{"error": "该日期还没有打卡记录，无法调整"})
 		return
 	}
 
@@ -371,8 +452,8 @@ func handleAdjust(w http.ResponseWriter, r *http.Request) {
 			writeJSON(w, http.StatusBadRequest, map[string]string{"error": "还没有上班打卡记录，无法调整"})
 			return
 		}
-		if existing.ClockOut != nil && body.Time >= *existing.ClockOut {
-			writeJSON(w, http.StatusBadRequest, map[string]string{"error": "上班时间不能晚于或等于下班时间"})
+		if existing.ClockOut != nil && body.Time == *existing.ClockOut {
+			writeJSON(w, http.StatusBadRequest, map[string]string{"error": "上班时间不能等于下班时间"})
 			return
 		}
 		duration := 0.0
@@ -390,8 +471,8 @@ func handleAdjust(w http.ResponseWriter, r *http.Request) {
 			writeJSON(w, http.StatusBadRequest, map[string]string{"error": "还没有下班打卡记录，无法调整"})
 			return
 		}
-		if existing.ClockIn != nil && body.Time <= *existing.ClockIn {
-			writeJSON(w, http.StatusBadRequest, map[string]string{"error": "下班时间不能早于或等于上班时间"})
+		if existing.ClockIn != nil && body.Time == *existing.ClockIn {
+			writeJSON(w, http.StatusBadRequest, map[string]string{"error": "下班时间不能等于上班时间"})
 			return
 		}
 		duration := 0.0
@@ -407,6 +488,8 @@ func handleAdjust(w http.ResponseWriter, r *http.Request) {
 	}
 
 	record := getRecordByUserDate(userID, date)
+	updateUserTitles(userID)
+	checkClockInAchievementsForUser(d, userID)
 	writeJSON(w, http.StatusOK, map[string]interface{}{
 		"message": "打卡时间调整成功",
 		"record":  record,
@@ -417,6 +500,12 @@ func handleAdjust(w http.ResponseWriter, r *http.Request) {
 func handleToday(w http.ResponseWriter, r *http.Request) {
 	userID := middleware.GetUserID(r)
 	record := getRecordByUserDate(userID, todayDate())
+	if record == nil || record.ClockIn == nil {
+		yesterdayRecord := getRecordByUserDate(userID, yesterdayDate())
+		if yesterdayRecord != nil && yesterdayRecord.ClockIn != nil && yesterdayRecord.ClockOut == nil {
+			record = yesterdayRecord
+		}
+	}
 	writeJSON(w, http.StatusOK, map[string]interface{}{
 		"record": record,
 	})
@@ -450,8 +539,16 @@ func handleStats(w http.ResponseWriter, r *http.Request) {
 	if period == "" {
 		period = "week"
 	}
+	if period != "week" && period != "month" && period != "year" {
+		period = "week"
+	}
 
-	startDate, endDate := getDateRange(period)
+	offset, err := strconv.Atoi(r.URL.Query().Get("offset"))
+	if err != nil || offset < 0 {
+		offset = 0
+	}
+
+	startDate, endDate := getDateRangeWithOffset(period, offset)
 	d := db.GetDB()
 
 	records := queryRecordsByUserAndDateRange(d, userID, startDate, endDate)
@@ -500,7 +597,7 @@ func handleStats(w http.ResponseWriter, r *http.Request) {
 
 	// 获取用户标准时间
 	var standardStart string
-	err := d.QueryRow("SELECT standard_start FROM users WHERE id = ?", userID).Scan(&standardStart)
+	err = d.QueryRow("SELECT standard_start FROM users WHERE id = ?", userID).Scan(&standardStart)
 	if err != nil {
 		standardStart = "09:00"
 	}
@@ -523,6 +620,7 @@ func handleStats(w http.ResponseWriter, r *http.Request) {
 
 	writeJSON(w, http.StatusOK, map[string]interface{}{
 		"period":     period,
+		"offset":     offset,
 		"startDate":  startDate,
 		"endDate":    endDate,
 		"totalDays":  totalDays,
@@ -655,9 +753,14 @@ func checkClockInAchievementsForUser(d *sql.DB, userID string) {
 // handleGetTodayTitle 获取今日工作风格标签
 func handleGetTodayTitle(w http.ResponseWriter, r *http.Request) {
 	userID := middleware.GetUserID(r)
-	date := todayDate()
+	record := getRecordByUserDate(userID, todayDate())
+	if record == nil || record.ClockIn == nil {
+		yesterdayRecord := getRecordByUserDate(userID, yesterdayDate())
+		if yesterdayRecord != nil && yesterdayRecord.ClockIn != nil && yesterdayRecord.ClockOut == nil {
+			record = yesterdayRecord
+		}
+	}
 
-	record := getRecordByUserDate(userID, date)
 	if record == nil || record.ClockIn == nil || record.ClockOut == nil {
 		writeJSON(w, http.StatusOK, map[string]interface{}{
 			"title":     "未完成打卡",
